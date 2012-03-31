@@ -35,38 +35,27 @@ wiz =
   tileWidth: 100
   tileHeight: 100
 
-  redwalktopleft:
-    x: 0
-    y: 0
-    num: 8
-  redwalktopright:
-    x: 8
-    y: 0
-    num: 8
-  redwalkbotright:
-    x: 0
-    y: 1
-    num: 8
-  redwalkbotleft:
-    x: 8
-    y: 1
-    num: 8
-  bluewalktopleft:
-    x: 0
-    y: 4
-    num: 8
-  bluewalktopright:
-    x: 8
-    y: 4
-    num: 8
-  bluewalkbotright:
-    x: 0
-    y: 5
-    num: 8
-  bluewalkbotleft:
-    x: 8
-    y: 5
-    num: 8
+  red: {x:0, y:1, num:1}
+  blue: {x:15, y:5, num:1}
+
+  redwalktopleft: {x: 0, y: 0, num: 8}
+  redwalktopright:{x: 8, y: 0, num: 8}
+  redwalkbotright:{x: 0, y: 1, num: 8}
+  redwalkbotleft: {x: 8, y: 1, num: 8}
+  bluewalktopleft:{x: 0, y: 4, num: 8}
+  bluewalktopright:{x: 8, y: 4, num: 8}
+  bluewalkbotright:{x: 0, y: 5, num: 8}
+  bluewalkbotleft: {x: 8, y: 5, num: 8}
+
+  redwarptopleft: {x: 0, y:2, num:4}
+  redwarptopright:{x: 5, y:2, num:4}
+  redwarpbotright:{x: 0, y:3, num:4}
+  redwarpbotleft: {x: 5, y:3, num:4}
+  bluewarptopleft: {x: 0, y:6, num:4}
+  bluewarptopright:{x: 5, y:6, num:4}
+  bluewarpbotright:{x: 0, y:7, num:4}
+  bluewarpbotleft: {x: 5, y:7, num:4}
+
 
   anchor: {x: 50, y: 91}
 
@@ -123,12 +112,10 @@ class Unit
   draw: ->
     return @animation.call(@) if @animation
     if @selected then drawAtIsoXY selector, @x, @y
-    s = if @owner is 'red' then 'redwalkbotright' else 'bluewalkbotleft'
     if @alpha != 1
       ctx.globalAlpha = @alpha
-    drawAtIsoXY wiz, @x, @y, s, 0
+    drawAtIsoXY wiz, @x, @y, @owner, 0
     ctx.globalAlpha = 1
-    ctx.restore()
 
   z: 0
 
@@ -211,11 +198,20 @@ drawAtIsoXY = (sprite, x, y, animName, frame) ->
   
   ctx.restore()
 
+facingDirection = (dx, dy) ->
+  if dx is -1
+    'botleft'
+  else if dx is 1
+    'topright'
+  else if dy is -1
+    'topleft'
+  else if dy is 1
+    'botright'
 
 class MoveAnim
   constructor: (@unit, @path, @direction) ->
-    @t = 0
     @duration = 0.5 * (@path.length - 1)
+    @t = if @direction is 'forward' then 0 else @duration
     anim = @
     @frameTime = 0.1 # Length in seconds of each animation frame
     @unit.animation = ->
@@ -224,26 +220,21 @@ class MoveAnim
 
       dx = to.x - from.x
       dy = to.y - from.y
-      facing = if dx is -1
-        'botleft'
-      else if dx is 1
-        'topright'
-      else if dy is -1
-        'topleft'
-      else if dy is 1
-        'botright'
+      facing = facingDirection dx, dy
 
       pos = lerp from, to, (anim.section % 1)
-      frame = Math.floor(anim.effectivet / anim.frameTime) % 8
+      frame = Math.floor(anim.t / anim.frameTime) % 8
       drawAtIsoXY wiz, pos.x, pos.y, "#{unit.owner}walk#{facing}", frame
 
     @step(0)
 
   step: (dt) ->
-    @t = Math.min @duration, @t + dt
+    @t = if @direction is 'forward'
+      Math.min(@duration, @t + dt)
+    else
+      Math.max(0, @t - dt)
 
-    @effectivet = if @direction is 'forward' then @t else @duration - @t
-    @section = @effectivet * (@path.length - 1) / @duration
+    @section = @t * (@path.length - 1) / @duration
     @sectionNum = Math.floor(@section)
 
     if @sectionNum >= @path.length - 1
@@ -256,7 +247,7 @@ class MoveAnim
     @unit.x = currentPos.x
     @unit.y = currentPos.y
 
-    return true if @t >= @duration
+    return (@direction is 'forward' and @t is @duration) or (@direction is 'backward' and @t is 0)
       
   end: ->
     @unit.animation = null
@@ -314,6 +305,18 @@ class AttackAction
     # 2. add 1 hp to unit at x,y
     target.hp++ if target.owner != @u.owner
 
+class PlaceStoneAnimation
+  constructor: (@unit, @direction, @callback) ->
+    @duration = 1
+    @t = if @direction is 'forward' then 0 else @duration
+    @step(0)
+
+  step: (dt) ->
+    @t = if @direction is 'forward'
+      Math.min(@duration, @t + dt)
+    else
+      Math.max(0, @t - dt)
+
 class PlaceStone
   constructor: (x, y, owner) ->
     @stone = new Stone x, y, owner
@@ -337,16 +340,54 @@ class WarpIn
   unapply: ->
     removeUnit @warpee
 
+class WarpOutAnimation
+  constructor: (@warpee, @warper, @direction, @callback) ->
+    @duration = 1
+    @frames = [0,1,2,3,2,3,2,1,0]
+
+    @t = if @direction is 'forward' then 0 else @duration
+
+    @step(0)
+
+    dx = @warpee.x - @warper.x
+    dy = @warpee.y - @warper.y
+    facing = facingDirection dx, dy
+
+    anim = this
+    @warper.animation = ->
+      drawAtIsoXY wiz, @x, @y, "#{anim.warper.owner}warp#{facing}", anim.frames[anim.frame]
+
+  step: (dt) ->
+    @t = if @direction is 'forward'
+      Math.min(@duration, @t + dt)
+    else
+      Math.max(0, @t - dt)
+
+    @frame = Math.floor(@t * @frames.length / @duration)
+    @frame = @frames.length - 1 if @frame is @frames.length
+    
+    @warpee.alpha = 1 - @t / @duration
+
+    return (@direction is 'forward' and @t is @duration) or (@direction is 'backward' and @t is 0)
+
+
+  end: ->
+    @warper.animation = null
+    @warpee.alpha = 1
+    @callback?()
+
 class WarpOut
   constructor: (@warpee, @warper) ->
 
   apply: ->
-    removeUnit @warpee
 #    @warper.tired = true
+    currentAnimation = new WarpOutAnimation @warpee, @warper, 'forward', ->
+      removeUnit @warpee if @direction is 'forward'
 
   unapply: ->
 #    @warper.tired = false
     units.push @warpee
+    currentAnimation = new WarpOutAnimation @warpee, @warper, 'backward'
 
 class WaitAction
   constructor: (@u) ->
@@ -687,6 +728,7 @@ atom.run
           s = stoneAt tileX, tileY
           if s?.owner is currentPlayer
             future.push new WarpOut warpee, selected
+            forward()
             removeActiveUnit warpee, currentDay
             removeActiveUnit selected, currentDay
 
