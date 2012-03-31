@@ -16,8 +16,14 @@ canvas.height = 720
 bg = new Image
 bg.src = 'bg_ruins720.png'
 
-sprite = new Image
-sprite.src = 'Staticpose.png'
+origin = {x:32,y:425}
+tileW = 56*2
+tileH = 28*2
+
+image = (src) -> (i = new Image).src = src; i
+wiz =
+  img: image 'Staticpose.png'
+  anchor: {x: 40, y: 89-10}
 
 stoneImg = new Image
 stoneImg.src = 'stone.png'
@@ -25,13 +31,12 @@ stoneImg.src = 'stone.png'
 selectorImg = new Image
 selectorImg.src = 'Selector.png'
 
+selector =
+  img: image 'Selector.png'
+  anchor: {x:45, y:50}
+
 
 currentAnimation = null
-
-
-origin = {x:32,y:425}
-tileW = 56*2
-tileH = 28*2
 
 dot = (a, b) -> a.x * b.x + a.y * b.y
 mag = (a) -> Math.sqrt(a.x * a.x + a.y * a.y)
@@ -66,14 +71,8 @@ class Unit
 
   draw: ->
     return @animation.call(@) if @animation
-    ctx.save()
-    ctx.translate origin.x, origin.y
-    ctx.fillStyle = if @tired then 'gray' else @owner
-    x = tileW/2*(@x+@y)
-    y = tileH/2*(-@x+@y)
-    if @selected
-      ctx.drawImage selectorImg, x+tileW/2-45, y-50
-    ctx.drawImage sprite, x+tileW/2-40, y-89+10
+    if @selected then drawAtIsoXY selector, @x, @y
+    drawAtIsoXY wiz, @x, @y
     ctx.restore()
 
   z: 0
@@ -157,19 +156,23 @@ stoneAt = (x, y) ->
 lerp = (from, to, t) ->
   {x:from.x*(1-t)+to.x*t, y:from.y*(1-t)+to.y*t}
 
+# sprite is {img, anchor}
+drawAtIsoXY = (sprite, x, y) ->
+  ctx.save()
+  ctx.translate origin.x, origin.y
+  px = tileW/2*(x+y)
+  py = tileH/2*(-x+y)
+  ctx.drawImage sprite.img, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y
+  ctx.restore()
+
 class MoveAnim
   constructor: (@unit, @from, @to) ->
     @t = 0
     @duration = 0.5
     anim = @
     @unit.animation = ->
-      ctx.save()
-      ctx.translate origin.x, origin.y
       pos = lerp anim.from, anim.to, anim.t/anim.duration
-      x = tileW/2*(pos.x+pos.y)
-      y = tileH/2*(-pos.x+pos.y)
-      ctx.drawImage sprite, x+tileW/2-40, y-89+10
-      ctx.restore()
+      drawAtIsoXY wiz, pos.x, pos.y
 
   step: (dt) ->
     end = @duration
