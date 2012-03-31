@@ -56,8 +56,27 @@ wiz =
   bluewarpbotright:{x: 0, y:7, num:4}
   bluewarpbotleft: {x: 5, y:7, num:4}
 
-
   anchor: {x: 50, y: 91}
+
+dragon =
+  img: image 'dragonshhet.png'
+  tileWidth: 150
+  tileHeight: 150
+
+  red: {x:0, y:0, num:1}
+  blue: {x:0, y:3, num:1}
+
+  redwalktopright: {x:0, y:0, num:9}
+  redwalktopleft: {x:0, y:1, num:9}
+  redwalkbotright: {x:0, y:0, num:9}
+  redwalkbotleft: {x:0, y:1, num:9}
+
+  bluewalktopright: {x:0, y:2, num:9}
+  bluewalktopleft: {x:0, y:3, num:9}
+  bluewalkbotright: {x:0, y:2, num:9}
+  bluewalkbotleft: {x:0, y:3, num:9}
+
+  anchor: {x:75, y:120}
 
 stoneImg = new Image
 stoneImg.src = 'stone.png'
@@ -100,7 +119,8 @@ ctx = atom.ctx
 
 
 unitTypes =
-  wizard: {hp:2, abilities:['Warp', 'Attack'], speed:3}
+  wizard: {hp:2, abilities:['Warp', 'Stone'], speed:2, sprites:wiz}
+  dragon: {hp:3, abilities:['Attack'], speed:3, sprites:dragon}
 
 class Unit
   constructor: (@x, @y, @type, @owner = 'red') ->
@@ -114,7 +134,7 @@ class Unit
     if @selected then drawAtIsoXY selector, @x, @y
     if @alpha != 1
       ctx.globalAlpha = @alpha
-    drawAtIsoXY wiz, @x, @y, @owner, 0
+    drawAtIsoXY @type.sprites, @x, @y, @owner, 0
     ctx.globalAlpha = 1
 
   z: 0
@@ -140,6 +160,9 @@ units = [
   new Unit 2, 4, 'wizard', 'red'
   new Unit 2, 1, 'wizard', 'blue'
   new Unit 2, 2, 'wizard', 'blue'
+
+  new Unit 5, 4, 'dragon', 'red'
+  new Unit 6, 1, 'dragon', 'blue'
 ]
 
 warpstones = []
@@ -208,10 +231,23 @@ facingDirection = (dx, dy) ->
   else if dy is 1
     'botright'
 
-class MoveAnim
-  constructor: (@unit, @path, @direction) ->
-    @duration = 0.5 * (@path.length - 1)
+class Animation
+  constructor: (@duration, @direction) ->
     @t = if @direction is 'forward' then 0 else @duration
+
+  step: (dt) ->
+    @t = if @direction is 'forward'
+      Math.min(@duration, @t + dt)
+    else
+      Math.max(0, @t - dt)
+
+  isDone: ->
+    (@direction is 'forward' and @t is @duration) or (@direction is 'backward' and @t is 0)
+
+
+class MoveAnim extends Animation
+  constructor: (@unit, @path, direction) ->
+    super 0.5 * (@path.length - 1), direction
     anim = @
     @frameTime = 0.1 # Length in seconds of each animation frame
     @unit.animation = ->
@@ -224,15 +260,12 @@ class MoveAnim
 
       pos = lerp from, to, (anim.section % 1)
       frame = Math.floor(anim.t / anim.frameTime) % 8
-      drawAtIsoXY wiz, pos.x, pos.y, "#{unit.owner}walk#{facing}", frame
+      drawAtIsoXY @type.sprites, pos.x, pos.y, "#{unit.owner}walk#{facing}", frame
 
     @step(0)
 
   step: (dt) ->
-    @t = if @direction is 'forward'
-      Math.min(@duration, @t + dt)
-    else
-      Math.max(0, @t - dt)
+    super(dt)
 
     @section = @t * (@path.length - 1) / @duration
     @sectionNum = Math.floor(@section)
@@ -247,7 +280,7 @@ class MoveAnim
     @unit.x = currentPos.x
     @unit.y = currentPos.y
 
-    return (@direction is 'forward' and @t is @duration) or (@direction is 'backward' and @t is 0)
+    return @isDone()
       
   end: ->
     @unit.animation = null
@@ -306,16 +339,13 @@ class AttackAction
     target.hp++ if target.owner != @u.owner
 
 class PlaceStoneAnimation
-  constructor: (@unit, @direction, @callback) ->
-    @duration = 1
-    @t = if @direction is 'forward' then 0 else @duration
+  constructor: (@unit, direction, @callback) ->
+    super 1, direction
     @step(0)
 
   step: (dt) ->
-    @t = if @direction is 'forward'
-      Math.min(@duration, @t + dt)
-    else
-      Math.max(0, @t - dt)
+    super dt
+    return @isDone()
 
 class PlaceStone
   constructor: (x, y, owner) ->
