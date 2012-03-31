@@ -4,6 +4,7 @@ atom.input.bind atom.key.W, 'warp'
 atom.input.bind atom.key.S, 'warpstone'
 atom.input.bind atom.key.A, 'attack'
 atom.input.bind atom.key.ESC, 'cancel'
+atom.input.bind atom.key.LSHIFT, 'accelerate'
 
 atom.input.bind atom.key.B, 'back'
 atom.input.bind atom.key.F, 'fwd'
@@ -20,6 +21,12 @@ sprite.src = 'Staticpose.png'
 
 stoneImg = new Image
 stoneImg.src = 'stone.png'
+
+selectorImg = new Image
+selectorImg.src = 'Selector.png'
+
+
+currentAnimation = null
 
 
 origin = {x:32,y:425}
@@ -47,19 +54,6 @@ screenToMap = (mx, my) ->
 
 ctx = atom.ctx
 
-TAU = Math.PI * 2
-
-###
-spritesheet = new Image
-spritesheet.src = 'tanks.png'
-spritesheet.onload = -> didLoad()
-###
-
-#actions = []
-
-
-currentAnimation = null
-
 
 unitTypes =
   wizard: {hp:2, abilities:['Warp', 'Attack'], speed:2}
@@ -71,18 +65,15 @@ class Unit
     @hp = @type.hp
 
   draw: ->
+    return @animation.call(@) if @animation
     ctx.save()
     ctx.translate origin.x, origin.y
     ctx.fillStyle = if @tired then 'gray' else @owner
     x = tileW/2*(@x+@y)
     y = tileH/2*(-@x+@y)
-    ctx.drawImage sprite, x+tileW/2-40, y-89+10
-    #ctx.fillRect x, y-20, tileW, 20
-
     if @selected
-      ctx.lineWidth = 4
-      ctx.strokeStyle = 'white'
-      #ctx.strokeRect @x*80+10, @y*80+10, 60, 60
+      ctx.drawImage selectorImg, x+tileW/2-45, y-50
+    ctx.drawImage sprite, x+tileW/2-40, y-89+10
     ctx.restore()
 
   z: 0
@@ -163,6 +154,32 @@ stoneAt = (x, y) ->
   for w in warpstones
     return w if w.x is x and w.y is y
 
+lerp = (from, to, t) ->
+  {x:from.x*(1-t)+to.x*t, y:from.y*(1-t)+to.y*t}
+
+class MoveAnim
+  constructor: (@unit, @from, @to) ->
+    @t = 0
+    @duration = 0.5
+    anim = @
+    @unit.animation = ->
+      ctx.save()
+      ctx.translate origin.x, origin.y
+      pos = lerp anim.from, anim.to, anim.t/anim.duration
+      x = tileW/2*(pos.x+pos.y)
+      y = tileH/2*(-pos.x+pos.y)
+      ctx.drawImage sprite, x+tileW/2-40, y-89+10
+      ctx.restore()
+
+  step: (dt) ->
+    end = @duration
+    @t = Math.min end, @t + dt
+    if @t >= end
+      return true
+  end: ->
+    @unit.animation = null
+
+
 class MoveAction
   constructor: (@u, @x, @y) ->
     @prevX = @u.x
@@ -171,10 +188,12 @@ class MoveAction
     @u.x = @x
     @u.y = @y
     @u.tired = true
+    currentAnimation = new MoveAnim @u, {x:@prevX,y:@prevY}, {x:@x,y:@y}
   unapply: ->
     @u.x = @prevX
     @u.y = @prevY
     @u.tired = false
+    currentAnimation = new MoveAnim @u, {x:@x,y:@y}, {x:@prevX,y:@prevY}
 
 removeUnit = (unit) ->
   units = (u for u in units when u != unit)
@@ -269,20 +288,39 @@ class EndDay
 past = []
 future = (new EndDay for [1..20])
 
+pendingActions = [] # [{action:a,direction:'forward'}]
+
 endDays = (d for d in future)
 endDays.reverse()
+
+
+perform = ({action, direction}) ->
+  throw 'shouldnt be any current anim' if currentAnimation
+  if direction is 'forward'
+    action.apply()
+  else
+    action.unapply()
+
+suspendAnimation = (f) ->
+  throw 'shouldnt be any current anim' if currentAnimation
+  f()
+  for a in pendingActions
+    perform a
+    currentAnimation?.end?()
+    currentAnimation = null
+  pendingActions = []
 
 back = ->
   action = past.pop()
   return unless action
-  action.unapply()
+  pendingActions.push {action, direction:'back'}
   future.push action
   action
 
 forward = ->
   action = future.pop()
   return unless action
-  action.apply()
+  pendingActions.push {action, direction:'forward'}
   past.push action
   action
 
@@ -293,19 +331,24 @@ goToEnd = -> while forward()
   ;
 
 getActiveUnits = (player) ->
-  goToBeginning()
-  goToEnd()
+  oldTime = future[future.length-1]
+  suspendAnimation ->
+    goToBeginning()
+    goToEnd()
 
   activeUnits = []
   for d, i in endDays
     activeUnits[i] = (u for u in d.activeUnits when u.owner is player)
 
+  suspendAnimation ->
+    back() while future[future.length-1] isnt oldTime
   activeUnits
 
 goToEvening = (dayNum) ->
-  goToEnd()
-  while currentDay > dayNum
-    back()
+  if endDays[dayNum] in future
+    forward() while future[future.length-1] isnt endDays[dayNum]
+  else
+    back() while future[future.length-1] isnt endDays[dayNum]
   return
 
 unitsToMove = {}
@@ -340,27 +383,40 @@ currentUnitActed = ->
     if unitsToMove[d].length
       goToEvening d
       break
+  return
 
 
-goToEvening 2
+suspendAnimation -> goToEvening 2
 future.push new WarpIn(new Unit 3, 3, 'wizard', 'red')
 
-turnStart()
+suspendAnimation -> turnStart()
 
 atom.run
   update: (dt) ->
-    # if we ticked time above, there might now be a current anim
     if currentAnimation
+      speed = if atom.input.down 'accelerate' then 5 else 1
       # update anim
-      return
+      completed = currentAnimation.step(dt * speed)
+      if completed
+        currentAnimation.end?()
+        currentAnimation = null
+      else
+        return
+    while pendingActions.length > 0
+      a = pendingActions.shift()
+      perform a
+      return if currentAnimation
+
 
     maybeEndTurn()
 
     if state is 'select'
       if atom.input.pressed 'back'
         goToEvening Math.max(currentDay - 1, 0)
+        return
       if atom.input.pressed 'fwd'
         goToEvening Math.min(currentDay + 1, 19)
+        return
 
 
     if atom.input.pressed 'click'
@@ -394,7 +450,7 @@ atom.run
             forward()
             state = 'act'
 
-        if atom.input.pressed 'cancel'
+        else if atom.input.pressed 'cancel'
           # go back to select and unselect the unit
           state = 'select'
           sel null
@@ -412,7 +468,8 @@ atom.run
 
         else if atom.input.pressed 'cancel'
           # Unmove.
-          back()
+          suspendAnimation ->
+            back()
           future.pop()
           state = 'move'
         
@@ -449,7 +506,7 @@ atom.run
             future.push new WarpOut selected
 
             if s in future
-              foward() while future[future.length - 1] != s
+              forward() while future[future.length - 1] != s
               future.pop()
             else
               back() while past[past.length - 1] != s

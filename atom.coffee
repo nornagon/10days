@@ -64,6 +64,7 @@ atom.button =
 atom.key =
   TAB: 9
   ENTER: 13
+  LSHIFT: 16
   ESC: 27
   SPACE: 32
   LEFT_ARROW: 37
