@@ -36,50 +36,70 @@ wiz =
   tileHeight: 100
 
   red: {x:0, y:1, num:1}
-  blue: {x:15, y:5, num:1}
+  blue: {x:15, y:7, num:1}
 
   redwalktopleft: {x: 0, y: 0, num: 8}
   redwalktopright:{x: 8, y: 0, num: 8}
   redwalkbotright:{x: 0, y: 1, num: 8}
   redwalkbotleft: {x: 8, y: 1, num: 8}
-  bluewalktopleft:{x: 0, y: 4, num: 8}
-  bluewalktopright:{x: 8, y: 4, num: 8}
-  bluewalkbotright:{x: 0, y: 5, num: 8}
-  bluewalkbotleft: {x: 8, y: 5, num: 8}
 
   redwarptopleft: {x: 0, y:2, num:4}
   redwarptopright:{x: 5, y:2, num:4}
   redwarpbotright:{x: 0, y:3, num:4}
   redwarpbotleft: {x: 5, y:3, num:4}
-  bluewarptopleft: {x: 0, y:6, num:4}
-  bluewarptopright:{x: 5, y:6, num:4}
-  bluewarpbotright:{x: 0, y:7, num:4}
-  bluewarpbotleft: {x: 5, y:7, num:4}
+
+  # TODO: Death animations
+
+  redstonebotleft: {x: 0, y:4, num:10}
+  redstonebotright:{x: 10, y:4, num:10}
+  redstonetopleft: {x: 0, y:5, num:10}
+  redstonetopright:{x: 10, y:5, num:10}
+
+  bluewalktopleft: {x: 0, y: 6, num: 8}
+  bluewalktopright:{x: 8, y: 6, num: 8}
+  bluewalkbotright:{x: 0, y: 7, num: 8}
+  bluewalkbotleft: {x: 8, y: 7, num: 8}
+
+  bluewarptopleft: {x: 0, y:8, num:4}
+  bluewarptopright:{x: 5, y:8, num:4}
+  bluewarpbotright:{x: 0, y:9, num:4}
+  bluewarpbotleft: {x: 5, y:9, num:4}
+
+  # DEath.
+
+  bluestonebotleft: {x: 0, y:10, num:10}
+  bluestonebotright:{x: 10, y:10, num:10}
+  bluestonetopleft: {x: 0, y:11, num:10}
+  bluestonetopright:{x: 10, y:11, num:10}
+
 
   anchor: {x: 50, y: 91}
 
 dragon =
-  img: image 'dragonshhet.png'
+  img: image 'dragonshheeet.png'
   tileWidth: 150
   tileHeight: 150
 
   red: {x:0, y:0, num:1}
-  blue: {x:0, y:3, num:1}
+  blue: {x:0, y:7, num:1}
 
-  redwalktopright: {x:0, y:0, num:9}
-  redwalktopleft: {x:0, y:1, num:9}
-  redwalkbotright: {x:0, y:0, num:9}
-  redwalkbotleft: {x:0, y:1, num:9}
+  redwalkbotleft: {x:0, y:0, num:9}
+  redwalkbotright: {x:0, y:1, num:9}
+  redwalktopright: {x:0, y:2, num:9}
+  redwalktopleft: {x:0, y:3, num:9}
 
-  bluewalktopright: {x:0, y:2, num:9}
-  bluewalktopleft: {x:0, y:3, num:9}
-  bluewalkbotright: {x:0, y:2, num:9}
-  bluewalkbotleft: {x:0, y:3, num:9}
+  bluewalktopright: {x:0, y:4, num:9}
+  bluewalktopleft: {x:0, y:5, num:9}
+  bluewalkbotleft: {x:0, y:6, num:9}
+  bluewalkbotright: {x:0, y:7, num:9}
+
+  # Attack and idle animations
 
   anchor: {x:75, y:120}
 
-stoneImg = new Image
-stoneImg.src = 'stone.png'
+stoneImg =
+  img: image 'stone.png'
+  anchor: {x:38, y:20}
 
 selectorImg = new Image
 selectorImg.src = 'Selector.png'
@@ -93,6 +113,7 @@ movementShadow =
   anchor: {x:83, y:59}
 
 
+reversing = false
 
 currentAnimation = null
 
@@ -144,6 +165,8 @@ class Stone
     @age = 0
 
   draw: ->
+    drawAtIsoXY stoneImg, @x, @y
+    ###
     ctx.save()
     ctx.translate origin.x, origin.y
     x = tileW/2*(@x+@y)
@@ -152,6 +175,7 @@ class Stone
     #ctx.fillRect x, y-20, tileW, 20
     ctx.drawImage stoneImg, x+tileW/2-38, y-20
     ctx.restore()
+    ###
 
   z: 1
 
@@ -338,44 +362,64 @@ class AttackAction
     # 2. add 1 hp to unit at x,y
     target.hp++ if target.owner != @u.owner
 
-class PlaceStoneAnimation
-  constructor: (@unit, direction, @callback) ->
+# Used for both placing stones and warping in units
+class PlaceStoneWarpAnimation extends Animation
+  # Warpee is optional.
+  constructor: (@unit, x, y, direction, @warpee) ->
     super 1, direction
+
+    dx = x - @unit.x
+    dy = y - @unit.y
+    facing = facingDirection dx, dy
+    a = "#{@unit.owner}stone#{facing}"
+    anim = this
+    @unit.animation = ->
+      frame = Math.floor(Math.min(anim.t / anim.duration * @type.sprites[a].num, @type.sprites[a].num))
+      drawAtIsoXY @type.sprites, @x, @y, a, frame
+
     @step(0)
 
   step: (dt) ->
     super dt
+    if @warpee
+      @warpee.alpha = @t / @duration
     return @isDone()
 
+  end: ->
+    @unit.animation = null
+    @warpee?.alpha = 1
+
 class PlaceStone
-  constructor: (x, y, owner) ->
-    @stone = new Stone x, y, owner
+  constructor: (@unit, @x, @y) ->
+    @stone = new Stone x, y, @unit.owner
     @stone.marker = this
 
     warpstones.push @stone
 
   apply: ->
+    currentAnimation = new PlaceStoneWarpAnimation @unit, @x, @y, 'forward'
     #warpstones.push @stone
 
   unapply: ->
+    currentAnimation = new PlaceStoneWarpAnimation @unit, @x, @y, 'backward'
     #warpstones = (w for w in warpstones when w != @stone)
 
 class WarpIn
-  constructor: (@warpee) ->
+  constructor: (@warpee, @summoner) ->
 
   apply: ->
     units.push @warpee
     @warpee.tired = true
+    currentAnimation = new PlaceStoneWarpAnimation @summoner, @warpee.x, @warpee.y, 'forward', @warpee
 
   unapply: ->
     removeUnit @warpee
+    currentAnimation = new PlaceStoneWarpAnimation @summoner, @warpee.x, @warpee.y, 'backward', @warpee
 
-class WarpOutAnimation
-  constructor: (@warpee, @warper, @direction, @callback) ->
-    @duration = 1
+class WarpOutAnimation extends Animation
+  constructor: (@warpee, @warper, direction, @callback) ->
+    super 1, direction
     @frames = [0,1,2,3,2,3,2,1,0]
-
-    @t = if @direction is 'forward' then 0 else @duration
 
     @step(0)
 
@@ -385,20 +429,17 @@ class WarpOutAnimation
 
     anim = this
     @warper.animation = ->
-      drawAtIsoXY wiz, @x, @y, "#{anim.warper.owner}warp#{facing}", anim.frames[anim.frame]
+      drawAtIsoXY @type.sprites, @x, @y, "#{anim.warper.owner}warp#{facing}", anim.frames[anim.frame]
 
   step: (dt) ->
-    @t = if @direction is 'forward'
-      Math.min(@duration, @t + dt)
-    else
-      Math.max(0, @t - dt)
+    super dt
 
     @frame = Math.floor(@t * @frames.length / @duration)
     @frame = @frames.length - 1 if @frame is @frames.length
     
     @warpee.alpha = 1 - @t / @duration
 
-    return (@direction is 'forward' and @t is @duration) or (@direction is 'backward' and @t is 0)
+    return @isDone()
 
 
   end: ->
@@ -428,21 +469,18 @@ class WaitAction
   unapply: ->
     #    @u.tired = false
 
-class FadeUnitsAnimation
-  constructor: (@us, @direction, @callback) ->
-    @duration = 0.4
-    @t = if @direction is 'forward' then 0 else @duration
+class FadeUnitsAnimation extends Animation
+  constructor: (@us, direction, @callback) ->
+    super 0.4, direction
+    @t = if direction is 'forward' then 0 else @duration
     @step(0)
   
   step: (dt) ->
-    @t = if @direction is 'forward'
-      Math.min(@duration, @t + dt)
-    else
-      Math.max(0, @t - dt)
+    super dt
 
     u.alpha = 1 - @t / @duration for u in @us
 
-    return (@direction is 'forward' and @t is @duration) or (@direction is 'backward' and @t is 0)
+    return @isDone()
 
   end: ->
     a = if @direction is 'forward' then 0 else 1
@@ -737,7 +775,7 @@ atom.run
 
             when 'Place Warpstone'
               if m is 1 and !stoneAt(tileX, tileY)
-                future.push new PlaceStone tileX, tileY, currentPlayer
+                future.push new PlaceStone selected, tileX, tileY
                 # Animation for the stone!
                 currentUnitActed()
 
@@ -778,7 +816,7 @@ atom.run
             # Make the warp clone of the unit
             u = new Unit(s.x, s.y, warpee.type, warpee.owner)
             u.hp = warpee.hp
-            future.push new WarpIn u
+            future.push new WarpIn u, s.marker.unit
             forward()
 
             sel null
@@ -810,5 +848,6 @@ atom.run
 #    u.draw() for u in us
 
     ctx.fillStyle = currentPlayer
-    ctx.fillText currentPlayer, 100, 500
+    ctx.fillText currentPlayer, 100, 600
+    ctx.fillText currentDay, 140, 600
 
