@@ -8,8 +8,37 @@ atom.input.bind atom.key.B, 'back'
 atom.input.bind atom.key.F, 'fwd'
 
 canvas = atom.canvas
-canvas.width = 800
-canvas.height = 600
+canvas.width = 1280
+canvas.height = 720
+
+bg = new Image
+bg.src = 'bg_ruins720.png'
+bgLoaded = false
+bg.onload = ->
+  bgLoaded = true
+
+origin = {x:32,y:425}
+tileW = 56*2
+tileH = 28*2
+
+dot = (a, b) -> a.x * b.x + a.y * b.y
+mag = (a) -> Math.sqrt(a.x * a.x + a.y * a.y)
+proj = (a, b) -> dot(a,b) / mag(b)
+screenToMap = (mx, my) ->
+  # get vector from origin to mouse in screen coords
+  sx = mx - origin.x
+  sy = my - origin.y
+  s = {x:sx, y:sy*2}
+  xUnit = {x: tileW/2, y: -tileH}
+  yUnit = {x: tileW/2, y: tileH}
+  console.log 'xUnit',xUnit.x,xUnit.y
+  console.log 'len(xUnit)',mag(xUnit)
+  console.log 'proj(xUnit,xUnit)', proj(xUnit,xUnit)
+  console.log 'proj(xUnit,yUnit)', proj(xUnit,yUnit)
+  x = proj s, xUnit
+  y = proj s, yUnit
+  l = mag(xUnit)
+  {tileX:Math.floor(x/l), tileY:Math.floor(y/l)}
 
 ctx = atom.ctx
 
@@ -37,13 +66,18 @@ class Unit
     @hp = @type.hp
 
   draw: ->
+    ctx.save()
+    ctx.translate origin.x, origin.y
     ctx.fillStyle = if @tired then 'gray' else @owner
-    ctx.fillRect @x*80+10, @y*80+10, 60, 60
+    x = tileW/2*(@x+@y)
+    y = tileH/2*(-@x+@y)
+    ctx.fillRect x, y-20, tileW, 20
 
     if @selected
       ctx.lineWidth = 4
       ctx.strokeStyle = 'white'
-      ctx.strokeRect @x*80+10, @y*80+10, 60, 60
+      #ctx.strokeRect @x*80+10, @y*80+10, 60, 60
+    ctx.restore()
 
 units = [
   new Unit 0, 0, 'wizard', 'red'
@@ -260,8 +294,10 @@ atom.run
 
 
     if atom.input.pressed 'click'
-      tileX = Math.floor atom.input.mouse.x/80
-      tileY = Math.floor atom.input.mouse.y/80
+      {tileX, tileY} = screenToMap atom.input.mouse.x, atom.input.mouse.y
+      console.log 'tile', tileX, tileY
+      #tileX = Math.floor atom.input.mouse.x/80
+      #tileY = Math.floor atom.input.mouse.y/80
     else
       tileX = tileY = null
 
@@ -319,10 +355,17 @@ atom.run
 
 
   draw: ->
-    ctx.fillStyle = 'black'
-    ctx.fillRect 0,0, canvas.width, canvas.height
+    #ctx.fillStyle = 'black'
+    #ctx.fillRect 0,0, canvas.width, canvas.height
+    ctx.drawImage bg, 0, 0
 
-    u.draw() for u in units
+    ys = []
+    for u in units
+      (ys[u.y] ?= []).push u
+    for y in ys
+      if y
+        y.sort((a,b) -> b.x-a.x).reverse()
+        u.draw() for u in y
 
     ctx.fillStyle = currentPlayer
     ctx.fillText currentPlayer, 100, 500
