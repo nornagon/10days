@@ -21,7 +21,14 @@ tileH = 28*2
 
 image = (src) -> (i = new Image).src = src; i
 
-bg = image 'bg_ruins720.png'
+bg =
+  img: image 'bg_ruins720.png'
+  canEnter: (x, y) ->
+    return false if x < 0 or y < 0 or x > 11 or y > 9
+    return x <= 1 if y is 0
+    return x in [10, 11] if y is 9
+    return y <= 3 if x is 0
+    true
 
 wiz =
   img: image 'Wizard Spritesheet.png'
@@ -73,6 +80,10 @@ selector =
   img: image 'Selector.png'
   anchor: {x:45, y:50}
 
+movementShadow =
+  img: image 'Movementshadow.png'
+  anchor: {x:83, y:59}
+
 
 
 currentAnimation = null
@@ -106,11 +117,17 @@ class Unit
   constructor: (@x, @y, @type, @owner = 'red') ->
     @type = unitTypes[@type] if typeof @type is 'string'
     @hp = @type.hp
+    @tired = true
+    @alpha = 1
 
   draw: ->
     return @animation.call(@) if @animation
     if @selected then drawAtIsoXY selector, @x, @y
-    drawAtIsoXY wiz, @x, @y, "#{@owner}walkbotright", 0
+    s = if @owner is 'red' then 'redwalkbotright' else 'bluewalkbotleft'
+    if @alpha != 1
+      ctx.globalAlpha = @alpha
+    drawAtIsoXY wiz, @x, @y, s, 0
+    ctx.globalAlpha = 1
     ctx.restore()
 
   z: 0
@@ -132,10 +149,10 @@ class Stone
   z: 1
 
 units = [
-  new Unit 0, 0, 'wizard', 'red'
-  new Unit 0, 1, 'wizard', 'red'
-  new Unit 2, 0, 'wizard', 'blue'
+  new Unit 1, 3, 'wizard', 'red'
+  new Unit 2, 4, 'wizard', 'red'
   new Unit 2, 1, 'wizard', 'blue'
+  new Unit 2, 2, 'wizard', 'blue'
 ]
 
 warpstones = []
@@ -196,40 +213,77 @@ drawAtIsoXY = (sprite, x, y, animName, frame) ->
 
 
 class MoveAnim
-  constructor: (@unit, @from, @to) ->
+  constructor: (@unit, @path, @direction) ->
     @t = 0
-    @duration = 2#0.5
+    @duration = 0.5 * (@path.length - 1)
     anim = @
-    @frameTime = 0.1
+    @frameTime = 0.1 # Length in seconds of each animation frame
     @unit.animation = ->
-      pos = lerp anim.from, anim.to, anim.t/anim.duration
-      frame = Math.floor(anim.t / anim.frameTime) % 8
-      console.log frame
-      drawAtIsoXY wiz, pos.x, pos.y, "#{unit.owner}walkbotright", frame
+      from = anim.path[anim.sectionNum]
+      to = anim.path[anim.sectionNum + 1]
+
+      dx = to.x - from.x
+      dy = to.y - from.y
+      facing = if dx is -1
+        'botleft'
+      else if dx is 1
+        'topright'
+      else if dy is -1
+        'topleft'
+      else if dy is 1
+        'botright'
+
+      pos = lerp from, to, (anim.section % 1)
+      frame = Math.floor(anim.effectivet / anim.frameTime) % 8
+      drawAtIsoXY wiz, pos.x, pos.y, "#{unit.owner}walk#{facing}", frame
+
+    @step(0)
 
   step: (dt) ->
-    end = @duration
-    @t = Math.min end, @t + dt
-    return true if @t >= end
+    @t = Math.min @duration, @t + dt
+
+    @effectivet = if @direction is 'forward' then @t else @duration - @t
+    @section = @effectivet * (@path.length - 1) / @duration
+    @sectionNum = Math.floor(@section)
+
+    if @sectionNum >= @path.length - 1
+      @sectionNum = @path.length - 2
+      @section = @sectionNum + .9999
+
+    currentPos = @path[@sectionNum]
+
+    # Do correct depth ordering
+    @unit.x = currentPos.x
+    @unit.y = currentPos.y
+
+    return true if @t >= @duration
       
   end: ->
     @unit.animation = null
 
+    finalPos = if @direction is 'forward' then @path[@path.length - 1] else @path[0]
+    @unit.x = finalPos.x
+    @unit.y = finalPos.y
+
 
 class MoveAction
-  constructor: (@u, @x, @y) ->
+  constructor: (@u, @path) ->
+    if @path.length
+      {@x, @y} = @path[@path.length - 1]
+    else
+      {@x, @y} = @u
     @prevX = @u.x
     @prevY = @u.y
   apply: ->
-    @u.x = @x
-    @u.y = @y
+    #@u.x = @x
+    #@u.y = @y
     @u.tired = true
-    currentAnimation = new MoveAnim @u, {x:@prevX,y:@prevY}, {x:@x,y:@y}
+    currentAnimation = new MoveAnim @u, @path, 'forward' if @path.length
   unapply: ->
-    @u.x = @prevX
-    @u.y = @prevY
+    #@u.x = @prevX
+    #@u.y = @prevY
     @u.tired = false
-    currentAnimation = new MoveAnim @u, {x:@x,y:@y}, {x:@prevX,y:@prevY}
+    currentAnimation = new MoveAnim @u, @path, 'backward' if @path.length
 
 removeUnit = (unit) ->
   units = (u for u in units when u != unit)
@@ -288,20 +342,41 @@ class WarpOut
 
   apply: ->
     removeUnit @warpee
-    @warper.tired = true
+#    @warper.tired = true
 
   unapply: ->
-    @warper.tired = false
+#    @warper.tired = false
     units.push @warpee
 
 class WaitAction
   constructor: (@u) ->
 
   apply: ->
-    @u.tired = true
+    #    @u.tired = true
 
   unapply: ->
-    @u.tired = false
+    #    @u.tired = false
+
+class FadeUnitsAnimation
+  constructor: (@us, @direction, @callback) ->
+    @duration = 0.4
+    @t = if @direction is 'forward' then 0 else @duration
+    @step(0)
+  
+  step: (dt) ->
+    @t = if @direction is 'forward'
+      Math.min(@duration, @t + dt)
+    else
+      Math.max(0, @t - dt)
+
+    u.alpha = 1 - @t / @duration for u in @us
+
+    return (@direction is 'forward' and @t is @duration) or (@direction is 'backward' and @t is 0)
+
+  end: ->
+    a = if @direction is 'forward' then 0 else 1
+    u.alpha = a for u in @us
+    @callback?()
 
 class EndDay
   constructor: ->
@@ -319,9 +394,13 @@ class EndDay
         newUnits.push u
       else
         @activeUnits.push u
-
-    units = newUnits
+   
     currentDay++
+
+    if @activeUnits.length
+      currentAnimation = new FadeUnitsAnimation @activeUnits, 'forward', -> units = newUnits
+    else
+      units = newUnits
 
   unapply: ->
     currentDay--
@@ -329,6 +408,7 @@ class EndDay
       u.tired = true
 
     units = units.concat @activeUnits
+    currentAnimation = new FadeUnitsAnimation @activeUnits, 'backward'
 
     w.age-- for w in warpstones
 
@@ -341,6 +421,7 @@ pendingActions = [] # [{action:a,direction:'forward'}]
 endDays = (d for d in future)
 endDays.reverse()
 
+#past.push new EndDay
 
 perform = ({action, direction}) ->
   throw 'shouldnt be any current anim' if currentAnimation
@@ -426,6 +507,7 @@ currentUnitActed = ->
   forward()
   removeActiveUnit selected, currentDay
   sel null
+  shadowedTiles = null
   state = 'select'
 
   for d in [currentDay...20].concat([0...currentDay])
@@ -435,10 +517,47 @@ currentUnitActed = ->
   return
 
 
+bfs = (map, origin, distance, cull) ->
+  dest = {}
+
+  fill = (x, y, path, distance) ->
+    return unless map.canEnter x, y
+
+    oldPath = dest["#{x},#{y}"]
+    return if oldPath and oldPath.length <= (path.length + 1)
+
+    u = unitAt x, y
+    return if u and u.owner isnt origin.owner
+    s = stoneAt x, y
+    return if s and s.age is 0
+
+    path = path.slice()
+    path.push {x, y}
+    dest["#{x},#{y}"] = path
+    
+    return if distance is 0
+
+    fill x-1, y, path, distance - 1
+    fill x, y-1, path, distance - 1
+    fill x+1, y, path, distance - 1
+    fill x, y+1, path, distance - 1
+
+  fill origin.x, origin.y, [], distance
+
+  for k, v of dest
+    d = v[v.length - 1]
+    u = unitAt d.x, d.y
+    if u and u.owner is origin.owner
+      delete dest[k]
+
+  dest
+
 #suspendAnimation -> goToEvening 0
 #future.push new WarpIn(new Unit 3, 3, 'wizard', 'red')
 
 suspendAnimation -> turnStart()
+
+shadowedTiles = null
 
 atom.run
   update: (dt) ->
@@ -487,21 +606,29 @@ atom.run
               break
 
           sel u
-          state = 'move' if u
+          if u
+            state = 'move'
+            shadowedTiles = bfs bg, unit, unit.type.speed
 
       when 'move'
         if atom.input.pressed 'click'
           # TODO: BFS
-          m = Math.abs(selected.x - tileX) + Math.abs(selected.y - tileY)
+          path = shadowedTiles["#{tileX},#{tileY}"]
           w = stoneAt tileX, tileY
-          if m is 0 or (m <= selected.type.speed and !unitAt(tileX, tileY) and (!w or w.age))
-            future.push new MoveAction selected, tileX, tileY
+
+          # Empty move. Add a move action anyway to tire the unit.
+          path = [] if selected.x is tileX and selected.y is tileY
+
+          if path
+            future.push new MoveAction selected, path
             forward()
             state = 'act'
+            shadowedTiles = null
 
         else if atom.input.pressed 'cancel'
           # go back to select and unselect the unit
           state = 'select'
+          shadowedTiles = null
           sel null
 
       when 'act'
@@ -524,6 +651,7 @@ atom.run
             back()
           future.pop()
           state = 'move'
+          shadowedTiles = bfs bg, selected, selected.type.speed
         
         # Wait: deselect unit and state -> select
 
@@ -537,7 +665,7 @@ atom.run
                 currentUnitActed()
 
             when 'Place Warpstone'
-              if m is 1
+              if m is 1 and !stoneAt(tileX, tileY)
                 future.push new PlaceStone tileX, tileY, currentPlayer
                 # Animation for the stone!
                 currentUnitActed()
@@ -594,7 +722,13 @@ atom.run
   draw: ->
     #ctx.fillStyle = 'black'
     #ctx.fillRect 0,0, canvas.width, canvas.height
-    ctx.drawImage bg, 0, 0
+    ctx.drawImage bg.img, 0, 0
+  
+    if shadowedTiles
+      for k, v of shadowedTiles
+        end = v[v.length - 1]
+        drawAtIsoXY movementShadow, end.x, end.y
+
 
     stuff = warpstones.concat units
     stuff.sort (a,b) -> (a.y - b.y) or (b.x - a.x) or (a.z - b.z)
