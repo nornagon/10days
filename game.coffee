@@ -61,7 +61,7 @@ wiz =
     y: 5
     num: 8
 
-  anchor: {x: 50, y: 95}
+  anchor: {x: 50, y: 91}
 
 stoneImg = new Image
 stoneImg.src = 'stone.png'
