@@ -22,7 +22,8 @@ tileH = 28*2
 image = (src) -> (i = new Image).src = src; i
 
 bg =
-  img: image 'bg_ruins720.png'
+  back: image 'bg_layer1.png'
+  fore: image 'bg_layer_cog.png'
   canEnter: (x, y) ->
     return false if x < 0 or y < 0 or x > 11 or y > 9
     return x <= 1 if y is 0
@@ -80,18 +81,18 @@ dragon =
   tileWidth: 150
   tileHeight: 150
 
-  red: {x:0, y:0, num:1}
-  blue: {x:0, y:7, num:1}
+  red: {x:0, y:1, num:1}
+  blue: {x:0, y:4, num:1}
 
   redwalkbotleft: {x:0, y:0, num:9}
   redwalkbotright: {x:0, y:1, num:9}
   redwalktopright: {x:0, y:2, num:9}
   redwalktopleft: {x:0, y:3, num:9}
 
-  bluewalktopright: {x:0, y:4, num:9}
-  bluewalktopleft: {x:0, y:5, num:9}
-  bluewalkbotleft: {x:0, y:6, num:9}
-  bluewalkbotright: {x:0, y:7, num:9}
+  bluewalkbotleft: {x:0, y:4, num:9}
+  bluewalkbotright: {x:0, y:5, num:9}
+  bluewalktopright: {x:0, y:6, num:9}
+  bluewalktopleft: {x:0, y:7, num:9}
 
   # Attack and idle animations
 
@@ -114,6 +115,7 @@ movementShadow =
 
 
 reversing = false
+reversingState = 0
 
 currentAnimation = null
 
@@ -258,6 +260,7 @@ facingDirection = (dx, dy) ->
 class Animation
   constructor: (@duration, @direction) ->
     @t = if @direction is 'forward' then 0 else @duration
+    reversing = @direction is 'backward'
 
   step: (dt) ->
     @t = if @direction is 'forward'
@@ -684,6 +687,7 @@ atom.run
       perform a
       return if currentAnimation
 
+    reversing = false
 
     maybeEndTurn()
 
@@ -832,7 +836,7 @@ atom.run
   draw: ->
     #ctx.fillStyle = 'black'
     #ctx.fillRect 0,0, canvas.width, canvas.height
-    ctx.drawImage bg.img, 0, 0
+    ctx.drawImage bg.back, 0, 0
   
     if shadowedTiles
       for k, v of shadowedTiles
@@ -847,7 +851,21 @@ atom.run
 #    us = (u for u in units).sort (a,b) -> (a.y - b.y) or (b.x - a.x)
 #    u.draw() for u in us
 
+    ctx.drawImage bg.fore, 0, 0
+
     ctx.fillStyle = currentPlayer
     ctx.fillText currentPlayer, 100, 600
     ctx.fillText currentDay, 140, 600
+
+    if reversing
+      reversingState = Math.min(reversingState + 0.01, 0.5)
+    else
+      reversingState = Math.max(reversingState - 0.025, 0)
+
+    if reversingState > 0
+      ctx.globalCompositeOperation = 'lighter'
+      ctx.fillStyle = "rgba(68, 138, 216, #{reversingState})"
+      ctx.fillRect 0,0, canvas.width, canvas.height
+      ctx.globalCompositeOperation = 'source-over'
+
 
