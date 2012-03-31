@@ -61,7 +61,7 @@ ctx = atom.ctx
 
 
 unitTypes =
-  wizard: {hp:2, abilities:['Warp', 'Attack'], speed:2}
+  wizard: {hp:2, abilities:['Warp', 'Attack'], speed:3}
 
 class Unit
   constructor: (@x, @y, @type, @owner = 'red') ->
@@ -241,22 +241,25 @@ class PlaceStone
     #warpstones = (w for w in warpstones when w != @stone)
 
 class WarpIn
-  constructor: (@u) ->
+  constructor: (@warpee) ->
 
   apply: ->
-    units.push @u
+    units.push @warpee
+    @warpee.tired = true
 
   unapply: ->
-    removeUnit @u
+    removeUnit @warpee
 
 class WarpOut
-  constructor: (@u) ->
+  constructor: (@warpee, @warper) ->
 
   apply: ->
-    removeUnit @u
+    removeUnit @warpee
+    @warper.tired = true
 
   unapply: ->
-    units.push @u
+    @warper.tired = false
+    units.push @warpee
 
 class EndDay
   constructor: ->
@@ -321,6 +324,7 @@ back = ->
   action
 
 forward = ->
+  console.log 'fwd'
   action = future.pop()
   return unless action
   pendingActions.push {action, direction:'forward'}
@@ -389,8 +393,8 @@ currentUnitActed = ->
   return
 
 
-suspendAnimation -> goToEvening 2
-future.push new WarpIn(new Unit 3, 3, 'wizard', 'red')
+#suspendAnimation -> goToEvening 0
+#future.push new WarpIn(new Unit 3, 3, 'wizard', 'red')
 
 suspendAnimation -> turnStart()
 
@@ -504,24 +508,41 @@ atom.run
 
       when 'warptarget'
         if atom.input.pressed 'click'
+          # s is the warpstone
+          # warpee is the unit that got warped
+          # selected is the unit that did the warping
           s = stoneAt tileX, tileY
           if s?.owner is currentPlayer
-            future.push new WarpOut selected
+            future.push new WarpOut warpee, selected
+            removeActiveUnit warpee, currentDay
+            removeActiveUnit selected, currentDay
 
-            if s in future
-              forward() while future[future.length - 1] != s
+            # Do we need to make the new unit active?
+            #active = warpee in unitsToMove[currentDay]
+
+            if s.marker in future
+              forward() while future[future.length - 1] != s.marker
               future.pop()
             else
-              back() while past[past.length - 1] != s
+              back() while past[past.length - 1] != s.marker
               past.pop()
 
-            u = new Unit(warpee.x, warpee.y, warpee.type, warpee.owner)
+            # Remove the marker from the marker list
+            warpstones = (w for w in warpstones when w != s)
+
+            # Make the warp clone of the unit
+            u = new Unit(s.x, s.y, warpee.type, warpee.owner)
             u.hp = warpee.hp
             future.push new WarpIn u
+            forward()
 
-            currentUnitActed()
+            sel null
+            state = 'select'
 
-
+            for d in [currentDay...20].concat([0...currentDay])
+              if unitsToMove[d].length
+                goToEvening d
+                break
 
         # cancel: go back to act
 
