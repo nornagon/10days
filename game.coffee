@@ -1,6 +1,7 @@
 
 atom.input.bind atom.button.LEFT, 'click'
 atom.input.bind atom.key.W, 'warp'
+atom.input.bind atom.key.S, 'warpstone'
 atom.input.bind atom.key.A, 'attack'
 atom.input.bind atom.key.ESCAPE, 'cancel'
 
@@ -16,6 +17,10 @@ bg.src = 'bg_ruins720.png'
 
 sprite = new Image
 sprite.src = 'Staticpose.png'
+
+stoneImg = new Image
+stoneImg.src = 'stone.png'
+
 
 origin = {x:32,y:425}
 tileW = 56*2
@@ -60,8 +65,8 @@ unitTypes =
   wizard: {hp:2, abilities:['Warp', 'Attack'], speed:2}
 
 class Unit
-  constructor: (@x, @y, type, @owner = 'red') ->
-    @type = unitTypes[type]
+  constructor: (@x, @y, @type, @owner = 'red') ->
+    @type = unitTypes[@type] if typeof @type is 'string'
     @state = 'alive'
     @hp = @type.hp
 
@@ -79,6 +84,24 @@ class Unit
       ctx.strokeStyle = 'white'
       #ctx.strokeRect @x*80+10, @y*80+10, 60, 60
     ctx.restore()
+
+  z: 0
+
+class Stone
+  constructor: (@x, @y, @owner) ->
+    @age = 0
+
+  draw: ->
+    ctx.save()
+    ctx.translate origin.x, origin.y
+    x = tileW/2*(@x+@y)
+    y = tileH/2*(-@x+@y)
+    ctx.fillStyle = if @age then 'gray' else @owner
+    #ctx.fillRect x, y-20, tileW, 20
+    ctx.drawImage stoneImg, x+tileW/2-38, y-20
+    ctx.restore()
+
+  z: 1
 
 units = [
   new Unit 0, 0, 'wizard', 'red'
@@ -127,6 +150,9 @@ getCurrentAnimation = -> currentAnimation or (currentAnimation = pendingAnims.sh
 # - Pick destination warp stone 'warptarget'
 state = 'select'
 
+# when we're in the 'target' state, this specifies the selected unit action (Warp, Attack, Place Warpstone, etc)
+selectedAction = null
+warpee = null
 
 unitAt = (x,y) ->
   for unit in units
@@ -181,17 +207,16 @@ class AttackAction
 
 class PlaceStone
   constructor: (x, y, owner) ->
-    @stone =
-      x: x
-      y: y
-      owner: owner
-      age: 0
+    @stone = new Stone x, y, owner
+    @stone.marker = this
 
-  apply: ->
     warpstones.push @stone
 
+  apply: ->
+    #warpstones.push @stone
+
   unapply: ->
-    warpstones = (w for w in warpstones when w != @stone)
+    #warpstones = (w for w in warpstones when w != @stone)
 
 class WarpIn
   constructor: (@u) ->
@@ -202,8 +227,14 @@ class WarpIn
   unapply: ->
     removeUnit @u
 
-#class WarpOut
-#  constructor: (@u) ->
+class WarpOut
+  constructor: (@u) ->
+
+  apply: ->
+    removeUnit @u
+
+  unapply: ->
+    units.push @u
 
 class EndDay
   constructor: ->
@@ -299,10 +330,20 @@ maybeEndTurn = ->
 removeActiveUnit = (unit, d) ->
   unitsToMove[d] = (u for u in unitsToMove[d] when u != unit)
 
+currentUnitActed = ->
+  forward()
+  removeActiveUnit selected, currentDay
+  sel null
+  state = 'select'
+
+  for d in [currentDay...20].concat([0...currentDay])
+    if unitsToMove[d].length
+      goToEvening d
+      break
+
+
 goToEvening 2
 future.push new WarpIn(new Unit 3, 3, 'wizard', 'red')
-goToEvening 2
-future.push new PlaceStone(4, 4, 'red')
 
 turnStart()
 
@@ -315,10 +356,11 @@ atom.run
 
     maybeEndTurn()
 
-    if atom.input.pressed 'back'
-      goToEvening Math.max(currentDay - 1, 0)
-    if atom.input.pressed 'fwd'
-      goToEvening Math.min(currentDay + 1, 19)
+    if state is 'select'
+      if atom.input.pressed 'back'
+        goToEvening Math.max(currentDay - 1, 0)
+      if atom.input.pressed 'fwd'
+        goToEvening Math.min(currentDay + 1, 19)
 
 
     if atom.input.pressed 'click'
@@ -356,46 +398,69 @@ atom.run
       when 'act'
         if atom.input.pressed 'attack'
           state = 'target'
+          selectedAction = 'Attack'
+        else if atom.input.pressed 'warp'
+          state = 'target'
+          selectedAction = 'Warp'
+        else if atom.input.pressed 'warpstone'
+          state = 'target'
+          selectedAction = 'Place Warpstone'
         # Cancel: go back to move, remove the move action
         # Wait: deselect unit and state -> select
 
       when 'target'
         if atom.input.pressed 'click'
           m = Math.abs(selected.x - tileX) + Math.abs(selected.y - tileY)
-          if m is 1
-            future.push new AttackAction selected, tileX, tileY
-            forward()
-            removeActiveUnit selected, currentDay
-            sel null
-            state = 'select'
+          switch selectedAction
+            when 'Attack'
+              if m is 1
+                future.push new AttackAction selected, tileX, tileY
+                currentUnitActed()
 
-            for d in [currentDay...20].concat([0...currentDay])
-              if unitsToMove[d].length
-                goToEvening d
-                break
+            when 'Place Warpstone'
+              if m is 1
+                future.push new PlaceStone tileX, tileY, currentPlayer
+                # Animation for the stone!
+                currentUnitActed()
+
+            when 'Warp'
+              if m is 1 and (warpee = unitAt tileX, tileY)
+                state = 'warptarget'
+
+      when 'warptarget'
+        if atom.input.pressed 'click'
+          s = stoneAt tileX, tileY
+          if s?.owner is currentPlayer
+            future.push new WarpOut selected
+
+            if s in future
+              foward() while future[future.length - 1] != s
+              future.pop()
+            else
+              back() while past[past.length - 1] != s
+              past.pop()
+
+            u = new Unit(warpee.x, warpee.y, warpee.type, warpee.owner)
+            u.hp = warpee.hp
+            future.push new WarpIn u
+
+            currentUnitActed()
+
+
 
         # cancel: go back to act
-
-
-
 
   draw: ->
     #ctx.fillStyle = 'black'
     #ctx.fillRect 0,0, canvas.width, canvas.height
     ctx.drawImage bg, 0, 0
 
-    ss = (s for s in warpstones).sort (a,b) -> (a.y - b.y) or (b.x - a.x)
-    for s in ss
-      ctx.save()
-      ctx.translate origin.x, origin.y
-      x = tileW/2*(s.x+s.y)
-      y = tileH/2*(-s.x+s.y)
-      ctx.fillStyle = if s.age then 'gray' else s.owner
-      ctx.fillRect x, y-20, tileW, 20
-      ctx.restore()
-
-    us = (u for u in units).sort (a,b) -> (a.y - b.y) or (b.x - a.x)
-    u.draw() for u in us
+    stuff = warpstones.concat units
+    stuff.sort (a,b) -> (a.y - b.y) or (b.x - a.x) or (a.z - b.z)
+    s.draw() for s in stuff
+ 
+#    us = (u for u in units).sort (a,b) -> (a.y - b.y) or (b.x - a.x)
+#    u.draw() for u in us
 
     ctx.fillStyle = currentPlayer
     ctx.fillText currentPlayer, 100, 500
