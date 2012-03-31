@@ -95,7 +95,6 @@ state = 'select'
 unitAt = (x,y) ->
   for unit in units
     if unit.x is x and unit.y is y
-      # Select the unit
       return unit
 
 class MoveAction
@@ -111,6 +110,9 @@ class MoveAction
     @u.y = @prevY
     @u.tired = false
 
+removeUnit = (unit) ->
+  units = (u for u in units when u != unit)
+
 class AttackAction
   constructor: (@u, @x, @y) ->
     # u is attacking the tile at x,y
@@ -122,8 +124,7 @@ class AttackAction
     target.hp--
     # 3. set its state to dead if its hp is 0 and if we killed it, store that fact
     @killed = target if target.hp <= 0
-    if @killed
-      units = (u for u in units when u != target)
+    removeUnit target if @killed
 
 
   unapply: ->
@@ -137,6 +138,15 @@ class AttackAction
 
     # 2. add 1 hp to unit at x,y
     target.hp++
+
+class WarpIn
+  constructor: (@u) ->
+
+  apply: ->
+    units.push @u
+
+  unapply: ->
+    removeUnit @u
 
 class EndDay
   constructor: ->
@@ -170,7 +180,6 @@ future = (new EndDay for [1..20])
 
 endDays = (d for d in future)
 endDays.reverse()
-
 
 back = ->
   action = past.pop()
@@ -230,6 +239,9 @@ maybeEndTurn = ->
 removeActiveUnit = (unit, d) ->
   unitsToMove[d] = (u for u in unitsToMove[d] when u != unit)
 
+goToEvening 4
+future.push new WarpIn(new Unit 3, 3, 'wizard', 'red')
+
 turnStart()
 
 atom.run
@@ -268,10 +280,9 @@ atom.run
 
       when 'move'
         if atom.input.pressed 'click'
-          console.log 'MOVE', tileX, tileY
           # TODO: BFS
           m = Math.abs(selected.x - tileX) + Math.abs(selected.y - tileY)
-          if m <= selected.type.speed
+          if m <= selected.type.speed and !unitAt tileX, tileY
             future.push new MoveAction selected, tileX, tileY
             forward()
             state = 'act'
@@ -292,6 +303,12 @@ atom.run
             removeActiveUnit selected, currentDay
             sel null
             state = 'select'
+
+            for d in [currentDay...20].concat([0...currentDay])
+              if unitsToMove[d].length
+                goToEvening d
+                break
+
         # cancel: go back to act
 
 
