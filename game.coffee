@@ -3,7 +3,7 @@ atom.input.bind atom.button.LEFT, 'click'
 atom.input.bind atom.key.W, 'warp'
 atom.input.bind atom.key.S, 'warpstone'
 atom.input.bind atom.key.A, 'attack'
-atom.input.bind atom.key.ESCAPE, 'cancel'
+atom.input.bind atom.key.ESC, 'cancel'
 
 atom.input.bind atom.key.B, 'back'
 atom.input.bind atom.key.F, 'fwd'
@@ -393,7 +393,11 @@ atom.run
             future.push new MoveAction selected, tileX, tileY
             forward()
             state = 'act'
-        # cancel: go back to select and unselect the unit
+
+        if atom.input.pressed 'cancel'
+          # go back to select and unselect the unit
+          state = 'select'
+          sel null
 
       when 'act'
         if atom.input.pressed 'attack'
@@ -405,7 +409,13 @@ atom.run
         else if atom.input.pressed 'warpstone'
           state = 'target'
           selectedAction = 'Place Warpstone'
-        # Cancel: go back to move, remove the move action
+
+        else if atom.input.pressed 'cancel'
+          # Unmove.
+          back()
+          future.pop()
+          state = 'move'
+        
         # Wait: deselect unit and state -> select
 
       when 'target'
@@ -424,8 +434,13 @@ atom.run
                 currentUnitActed()
 
             when 'Warp'
+              console.log 'warp a'
               if m is 1 and (warpee = unitAt tileX, tileY)
                 state = 'warptarget'
+
+        else if atom.input.pressed 'cancel'
+          state = 'act'
+          selectedAction = null
 
       when 'warptarget'
         if atom.input.pressed 'click'
