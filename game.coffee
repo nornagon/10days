@@ -13,9 +13,9 @@ canvas.height = 720
 
 bg = new Image
 bg.src = 'bg_ruins720.png'
-bgLoaded = false
-bg.onload = ->
-  bgLoaded = true
+
+sprite = new Image
+sprite.src = 'Staticpose.png'
 
 origin = {x:32,y:425}
 tileW = 56*2
@@ -71,7 +71,8 @@ class Unit
     ctx.fillStyle = if @tired then 'gray' else @owner
     x = tileW/2*(@x+@y)
     y = tileH/2*(-@x+@y)
-    ctx.fillRect x, y-20, tileW, 20
+    ctx.drawImage sprite, x+tileW/2-40, y-89+10
+    #ctx.fillRect x, y-20, tileW, 20
 
     if @selected
       ctx.lineWidth = 4
