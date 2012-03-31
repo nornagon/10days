@@ -3,6 +3,7 @@ atom.input.bind atom.button.LEFT, 'click'
 atom.input.bind atom.key.W, 'warp'
 atom.input.bind atom.key.S, 'warpstone'
 atom.input.bind atom.key.A, 'attack'
+atom.input.bind atom.key.T, 'wait'
 atom.input.bind atom.key.ESC, 'cancel'
 atom.input.bind atom.key.LSHIFT, 'accelerate'
 
@@ -13,17 +14,54 @@ canvas = atom.canvas
 canvas.width = 1280
 canvas.height = 720
 
-bg = new Image
-bg.src = 'bg_ruins720.png'
 
 origin = {x:32,y:425}
 tileW = 56*2
 tileH = 28*2
 
 image = (src) -> (i = new Image).src = src; i
+
+bg = image 'bg_ruins720.png'
+
 wiz =
-  img: image 'Staticpose.png'
-  anchor: {x: 40, y: 89-10}
+  img: image 'Wizard Spritesheet.png'
+  tileWidth: 100
+  tileHeight: 100
+
+  redwalktopleft:
+    x: 0
+    y: 0
+    num: 8
+  redwalktopright:
+    x: 8
+    y: 0
+    num: 8
+  redwalkbotright:
+    x: 0
+    y: 1
+    num: 8
+  redwalkbotleft:
+    x: 8
+    y: 1
+    num: 8
+  bluewalktopleft:
+    x: 0
+    y: 4
+    num: 8
+  bluewalktopright:
+    x: 8
+    y: 4
+    num: 8
+  bluewalkbotright:
+    x: 0
+    y: 5
+    num: 8
+  bluewalkbotleft:
+    x: 8
+    y: 5
+    num: 8
+
+  anchor: {x: 50, y: 95}
 
 stoneImg = new Image
 stoneImg.src = 'stone.png'
@@ -34,6 +72,7 @@ selectorImg.src = 'Selector.png'
 selector =
   img: image 'Selector.png'
   anchor: {x:45, y:50}
+
 
 
 currentAnimation = null
@@ -48,10 +87,10 @@ screenToMap = (mx, my) ->
   s = {x:sx, y:sy*2}
   xUnit = {x: tileW/2, y: -tileH}
   yUnit = {x: tileW/2, y: tileH}
-  console.log 'xUnit',xUnit.x,xUnit.y
-  console.log 'len(xUnit)',mag(xUnit)
-  console.log 'proj(xUnit,xUnit)', proj(xUnit,xUnit)
-  console.log 'proj(xUnit,yUnit)', proj(xUnit,yUnit)
+#  console.log 'xUnit',xUnit.x,xUnit.y
+#  console.log 'len(xUnit)',mag(xUnit)
+#  console.log 'proj(xUnit,xUnit)', proj(xUnit,xUnit)
+#  console.log 'proj(xUnit,yUnit)', proj(xUnit,yUnit)
   x = proj s, xUnit
   y = proj s, yUnit
   l = mag(xUnit)
@@ -66,13 +105,12 @@ unitTypes =
 class Unit
   constructor: (@x, @y, @type, @owner = 'red') ->
     @type = unitTypes[@type] if typeof @type is 'string'
-    @state = 'alive'
     @hp = @type.hp
 
   draw: ->
     return @animation.call(@) if @animation
     if @selected then drawAtIsoXY selector, @x, @y
-    drawAtIsoXY wiz, @x, @y
+    drawAtIsoXY wiz, @x, @y, "#{@owner}walkbotright", 0
     ctx.restore()
 
   z: 0
@@ -96,8 +134,8 @@ class Stone
 units = [
   new Unit 0, 0, 'wizard', 'red'
   new Unit 0, 1, 'wizard', 'red'
-  new Unit 9, 0, 'wizard', 'blue'
-  new Unit 9, 1, 'wizard', 'blue'
+  new Unit 2, 0, 'wizard', 'blue'
+  new Unit 2, 1, 'wizard', 'blue'
 ]
 
 warpstones = []
@@ -110,27 +148,6 @@ sel = (u) ->
   selected?.selected = false
   selected = u
   u?.selected = true
-
-###
-
-
-animationsForDay = (day) ->
-  anims = []
-  for u in days[day]
-    d = u.days[day]
-    throw 'unit in days list doesn\'t have relevant day data' unless d
-    if d.movePath? then anims.push {movePath:d.movePath}
-    if d.action? then anims.push {action:d.action}
-  anims
-
-targetDay = 1
-
-pendingAnims = []
-for d in [currentDay..targetDay]
-  pendingAnims = pendingAnims.concat animationsForDay(d)
-
-getCurrentAnimation = -> currentAnimation or (currentAnimation = pendingAnims.shift())
-###
 
 # states are:
 # - Pick which unit to move 'select'
@@ -157,28 +174,44 @@ lerp = (from, to, t) ->
   {x:from.x*(1-t)+to.x*t, y:from.y*(1-t)+to.y*t}
 
 # sprite is {img, anchor}
-drawAtIsoXY = (sprite, x, y) ->
+drawAtIsoXY = (sprite, x, y, animName, frame) ->
   ctx.save()
   ctx.translate origin.x, origin.y
   px = tileW/2*(x+y)
   py = tileH/2*(-x+y)
-  ctx.drawImage sprite.img, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y
+  
+  if animName
+    a = sprite[animName]
+
+    tw = sprite.tileWidth
+    th = sprite.tileHeight
+    tx = tw * (a.x + frame)
+    ty = th * a.y
+
+    ctx.drawImage sprite.img, tx, ty, tw, th, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y, tw, th
+  else
+    ctx.drawImage sprite.img, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y
+  
   ctx.restore()
+
 
 class MoveAnim
   constructor: (@unit, @from, @to) ->
     @t = 0
-    @duration = 0.5
+    @duration = 2#0.5
     anim = @
+    @frameTime = 0.1
     @unit.animation = ->
       pos = lerp anim.from, anim.to, anim.t/anim.duration
-      drawAtIsoXY wiz, pos.x, pos.y
+      frame = Math.floor(anim.t / anim.frameTime) % 8
+      console.log frame
+      drawAtIsoXY wiz, pos.x, pos.y, "#{unit.owner}walkbotright", frame
 
   step: (dt) ->
     end = @duration
     @t = Math.min end, @t + dt
-    if @t >= end
-      return true
+    return true if @t >= end
+      
   end: ->
     @unit.animation = null
 
@@ -209,7 +242,7 @@ class AttackAction
     target = unitAt @x, @y
     return unless target
     # 2. deal 1 damage to it
-    target.hp--
+    target.hp-- if target.owner != @u.owner
     # 3. set its state to dead if its hp is 0 and if we killed it, store that fact
     @killed = target if target.hp <= 0
     removeUnit target if @killed
@@ -225,7 +258,7 @@ class AttackAction
       return unless target
 
     # 2. add 1 hp to unit at x,y
-    target.hp++
+    target.hp++ if target.owner != @u.owner
 
 class PlaceStone
   constructor: (x, y, owner) ->
@@ -260,6 +293,15 @@ class WarpOut
   unapply: ->
     @warper.tired = false
     units.push @warpee
+
+class WaitAction
+  constructor: (@u) ->
+
+  apply: ->
+    @u.tired = true
+
+  unapply: ->
+    @u.tired = false
 
 class EndDay
   constructor: ->
@@ -452,7 +494,7 @@ atom.run
           # TODO: BFS
           m = Math.abs(selected.x - tileX) + Math.abs(selected.y - tileY)
           w = stoneAt tileX, tileY
-          if m <= selected.type.speed and !unitAt(tileX, tileY) and (!w or w.age)
+          if m is 0 or (m <= selected.type.speed and !unitAt(tileX, tileY) and (!w or w.age))
             future.push new MoveAction selected, tileX, tileY
             forward()
             state = 'act'
@@ -472,6 +514,9 @@ atom.run
         else if atom.input.pressed 'warpstone'
           state = 'target'
           selectedAction = 'Place Warpstone'
+        else if atom.input.pressed 'wait'
+          future.push new WaitAction selected
+          currentUnitActed()
 
         else if atom.input.pressed 'cancel'
           # Unmove.
