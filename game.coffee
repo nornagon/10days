@@ -28,7 +28,7 @@ currentAnimation = null
 
 
 unitTypes =
-  wizard: {hp:2, abilities:['Warp'], speed:2}
+  wizard: {hp:2, abilities:['Warp', 'Attack'], speed:2}
 
 class Unit
   constructor: (@x, @y, type, @owner = 'red') ->
@@ -51,6 +51,7 @@ units = [
   new Unit 9, 0, 'wizard', 'blue'
   new Unit 9, 1, 'wizard', 'blue'
 ]
+
 warpstones = []
 
 currentDay = 0
@@ -97,6 +98,10 @@ unitAt = (x,y) ->
     if unit.x is x and unit.y is y
       return unit
 
+stoneAt = (x, y) ->
+  for w in warpstones
+    return w if w.x is x and w.y is y
+
 class MoveAction
   constructor: (@u, @x, @y) ->
     @prevX = @u.x
@@ -139,6 +144,20 @@ class AttackAction
     # 2. add 1 hp to unit at x,y
     target.hp++
 
+class PlaceStone
+  constructor: (x, y, owner) ->
+    @stone =
+      x: x
+      y: y
+      owner: owner
+      age: 0
+
+  apply: ->
+    warpstones.push @stone
+
+  unapply: ->
+    warpstones = (w for w in warpstones when w != @stone)
+
 class WarpIn
   constructor: (@u) ->
 
@@ -148,11 +167,16 @@ class WarpIn
   unapply: ->
     removeUnit @u
 
+#class WarpOut
+#  constructor: (@u) ->
+
 class EndDay
   constructor: ->
     # Units that still have a turn during this day
 
   apply: ->
+    w.age++ for w in warpstones
+
     newUnits = []
 
     @activeUnits = []
@@ -173,6 +197,7 @@ class EndDay
 
     units = units.concat @activeUnits
 
+    w.age-- for w in warpstones
 
 # action is {apply:->, unapply:->}
 past = []
@@ -239,8 +264,10 @@ maybeEndTurn = ->
 removeActiveUnit = (unit, d) ->
   unitsToMove[d] = (u for u in unitsToMove[d] when u != unit)
 
-goToEvening 4
+goToEvening 2
 future.push new WarpIn(new Unit 3, 3, 'wizard', 'red')
+goToEvening 2
+future.push new PlaceStone(4, 4, 'red')
 
 turnStart()
 
@@ -282,7 +309,8 @@ atom.run
         if atom.input.pressed 'click'
           # TODO: BFS
           m = Math.abs(selected.x - tileX) + Math.abs(selected.y - tileY)
-          if m <= selected.type.speed and !unitAt tileX, tileY
+          w = stoneAt tileX, tileY
+          if m <= selected.type.speed and !unitAt(tileX, tileY) and (!w or w.age)
             future.push new MoveAction selected, tileX, tileY
             forward()
             state = 'act'
@@ -314,13 +342,13 @@ atom.run
 
 
 
-
-
-
-
   draw: ->
     ctx.fillStyle = 'black'
     ctx.fillRect 0,0, canvas.width, canvas.height
+
+    for s in warpstones
+      ctx.fillStyle = if s.age then 'gray' else s.owner
+      ctx.fillRect s.x*80+20, s.y*80+20, 40, 40
 
     u.draw() for u in units
 
