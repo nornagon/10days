@@ -22,8 +22,13 @@ tileH = 28*2
 image = (src) -> (i = new Image).src = src; i
 
 bg =
-  back: image 'bg_layer1.png'
-  fore: image 'bg_layer_cog.png'
+  back: image 'bg.png'
+
+  fore: image 'bg_cog.png'
+  drawFg: ->
+    ctx.drawImage @fore, 794, 492
+
+
   canEnter: (x, y) ->
     return false if x < 0 or y < 0 or x > 11 or y > 9
     return x <= 1 if y is 0
@@ -33,7 +38,6 @@ bg =
 
 wiz =
   img: image 'Wizard Spritesheet.png'
-  moody: image 'Wizard Spritesheetmoody.png'
   tileWidth: 100
   tileHeight: 100
 
@@ -102,7 +106,6 @@ wiz =
 
 dragon =
   img: image 'dragonshheeet.png'
-  moody: image 'dragonshheeet.png'
   #moody: image 'dragonshheeet muted.png'
   tileWidth: 150
   tileHeight: 150
@@ -151,7 +154,7 @@ dragon =
   anchor: {x:75, y:120}
 
 knight =
-  #img: image 'Knight_Texsheet.png'
+  img: image 'Knight Texsheet.png'
   # moody: image 'Knight_Texsheetmuted.png'
   tileWidth: 100
   tileHeight: 100
@@ -303,7 +306,7 @@ units = [
   new Unit 1, 4, 'dragon', 'red'
 #  new Unit 1, 5, 'dragon', 'red'
 
-#  new Unit 1, 6, 'knight', 'red'
+  new Unit 1, 6, 'knight', 'red'
 #  new Unit 1, 7, 'knight', 'red'
 
   new Unit 10, 1, 'wizard', 'blue'
@@ -366,7 +369,7 @@ drawAtIsoXY = (sprite, x, y, animName, frame, moody) ->
   px = tileW/2*(x+y)
   py = tileH/2*(-x+y)
   
-  img = if moody then sprite.moody else sprite.img
+  if moody then ctx.globalAlpha = 0.5
   if animName
     a = sprite[animName]
 
@@ -375,10 +378,11 @@ drawAtIsoXY = (sprite, x, y, animName, frame, moody) ->
     tx = tw * (a.x + frame)
     ty = th * a.y
 
-    ctx.drawImage img, tx, ty, tw, th, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y, tw, th
+    ctx.drawImage sprite.img, tx, ty, tw, th, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y, tw, th
   else
-    ctx.drawImage img, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y
+    ctx.drawImage sprite.img, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y
   
+  if moody then ctx.globalAlpha = 1
   ctx.restore()
 
 facingDirection = (dx, dy) ->
@@ -388,7 +392,7 @@ facingDirection = (dx, dy) ->
     'topright'
   else if dy is -1
     'topleft'
-  else if dy is 1
+  else #if dy is 1
     'botright'
 
 class Animation
@@ -1085,8 +1089,8 @@ atom.run
  
 #    us = (u for u in units).sort (a,b) -> (a.y - b.y) or (b.x - a.x)
 #    u.draw() for u in us
-
-    ctx.drawImage bg.fore, 0, 0
+    
+    bg.drawFg?()
 
     ctx.fillStyle = currentPlayer
     ctx.fillText currentPlayer, 100, 600
