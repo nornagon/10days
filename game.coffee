@@ -36,8 +36,15 @@ wiz =
   tileWidth: 100
   tileHeight: 100
 
-  red: {x:0, y:1, num:1}
-  blue: {x:15, y:7, num:1}
+  redtopleft: {x:0, y:0, num:1}
+  redtopright: {x:8, y:0, num:1}
+  redbotright: {x:0, y:1, num:1}
+  redbotleft: {x:15, y:1, num:1}
+
+  bluetopleft: {x:0, y:6, num:1}
+  bluetopright: {x:8, y:6, num:1}
+  bluebotright: {x:0, y:7, num:1}
+  bluebotleft: {x:15, y:7, num:1}
 
   redwalktopleft: {x: 0, y: 0, num: 8}
   redwalktopright:{x: 8, y: 0, num: 8}
@@ -81,8 +88,15 @@ dragon =
   tileWidth: 150
   tileHeight: 150
 
-  red: {x:0, y:1, num:1}
-  blue: {x:0, y:4, num:1}
+  redtopleft: {x:0, y:1, num:1}
+  redtopright: {x:0, y:1, num:1}
+  redbotleft: {x:0, y:1, num:1}
+  redbotright: {x:0, y:1, num:1}
+
+  bluetopleft: {x:0, y:4, num:1}
+  bluetopright: {x:0, y:4, num:1}
+  bluebotleft: {x:0, y:4, num:1}
+  bluebotright: {x:0, y:4, num:1}
 
   redwalkbotleft: {x:0, y:0, num:9}
   redwalkbotright: {x:0, y:1, num:9}
@@ -151,13 +165,14 @@ class Unit
     @hp = @type.hp
     @tired = true
     @alpha = 1
+    @facing = if @owner is 'red' then 'botright' else 'botleft'
 
   draw: ->
     return @animation.call(@) if @animation
     if @selected then drawAtIsoXY selector, @x, @y
     if @alpha != 1
       ctx.globalAlpha = @alpha
-    drawAtIsoXY @type.sprites, @x, @y, @owner, 0
+    drawAtIsoXY @type.sprites, @x, @y, "#{@owner}#{@facing}", 0
     ctx.globalAlpha = 1
 
   z: 0
@@ -312,6 +327,13 @@ class MoveAnim extends Animation
   end: ->
     @unit.animation = null
 
+    if @direction is 'forward' and @path.length >= 2
+      from = @path[@path.length - 2]
+      to = @path[@path.length - 1]
+      dx = to.x - from.x
+      dy = to.y - from.y
+      @unit.facing = facingDirection dx, dy
+
     finalPos = if @direction is 'forward' then @path[@path.length - 1] else @path[0]
     @unit.x = finalPos.x
     @unit.y = finalPos.y
@@ -329,12 +351,14 @@ class MoveAction
     #@u.x = @x
     #@u.y = @y
     @u.tired = true
+    @prevFacing = @u.facing
     currentAnimation = new MoveAnim @u, @path, 'forward' if @path.length
   unapply: ->
     #@u.x = @prevX
     #@u.y = @prevY
     @u.tired = false
     currentAnimation = new MoveAnim @u, @path, 'backward' if @path.length
+    @u.facing = @prevFacing
 
 removeUnit = (unit) ->
   units = (u for u in units when u != unit)
@@ -784,7 +808,6 @@ atom.run
                 currentUnitActed()
 
             when 'Warp'
-              console.log 'warp a'
               if m is 1 and (warpee = unitAt tileX, tileY)
                 state = 'warptarget'
 
@@ -831,6 +854,10 @@ atom.run
                 goToEvening d
                 break
 
+        else if atom.input.pressed 'cancel'
+          state = 'target'
+          warpee = null
+
         # cancel: go back to act
 
   draw: ->
@@ -858,9 +885,9 @@ atom.run
     ctx.fillText currentDay, 140, 600
 
     if reversing
-      reversingState = Math.min(reversingState + 0.01, 0.5)
+      reversingState = Math.min(reversingState + 0.015, 0.5)
     else
-      reversingState = Math.max(reversingState - 0.025, 0)
+      reversingState = Math.max(reversingState - 0.03, 0)
 
     if reversingState > 0
       ctx.globalCompositeOperation = 'lighter'
