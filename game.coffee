@@ -1184,8 +1184,10 @@ atom.run
         end = v[v.length - 1]
         drawAtIsoXY movementShadow, end.x, end.y
 
+    warpstones.sort (a,b) -> (a.y - b.y) or (b.x - a.x) or (a.z - b.z)
+    s.draw() for s in warpstones
 
-    stuff = warpstones.concat units
+    stuff = units.slice()
     stuff.sort (a,b) -> (a.y - b.y) or (b.x - a.x) or (a.z - b.z)
     s.draw() for s in stuff
  
