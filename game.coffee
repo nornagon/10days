@@ -383,6 +383,12 @@ class Stone
   draw: ->
     drawAtIsoXY glyphs, @x, @y, @owner, if @age == 0 then 0 else 1
 
+    {x, y} = isoToScreen {anchor:{x:0,y:0}}, @x, @y
+    ctx.font = '16px Helvetica'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = 'green'#@owner
+    ctx.fillText (currentDay - @age), x - 28, y + 5
+
     ###
     ctx.save()
     ctx.translate origin.x, origin.y
@@ -419,8 +425,8 @@ isoToScreen = (sprite, x, y) ->
 
   x: px+tileW/2-sprite.anchor.x + origin.x
   y: py-sprite.anchor.y + origin.y
-  w: sprite.img.width
-  h: sprite.img.height
+  w: sprite.img?.width
+  h: sprite.img?.height
 
 # sprite is {img, anchor}
 drawAtIsoXY = (sprite, x, y, animName, frame = 0, moody = false) ->
