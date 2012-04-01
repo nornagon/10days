@@ -1048,7 +1048,7 @@ atom.run
       when 'move'
         if atom.input.pressed 'click'
           # TODO: BFS
-          if (u = unitAt tileX, tileY) and u.owner is currentPlayer
+          if (u = unitAt tileX, tileY) and u isnt selected and u.owner is currentPlayer
             sel u
             shadowedTiles = bfs bg, u, u.type.speed
           else
