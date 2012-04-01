@@ -37,6 +37,11 @@ bg =
     true
 
 sliderbar = image 'time_slider_full_bar.png'
+unit_stats = image 'unit_stats.png'
+player_text = {red: image('player1_text.png'), blue: image('player2_text.png')}
+hp_text = image 'HP.png'
+hp_num = [image('1.png'), image('1.png'), image('2.png'), image('3.png')]
+indicator = image 'indicator.png'
 
 wiz =
   img: image 'Wizard Spritesheet.png'
@@ -204,9 +209,15 @@ knight =
 
   anchor: {x: 50, y: 91}
 
-stoneImg =
-  img: image 'stone.png'
-  anchor: {x:38, y:20}
+glyphs =
+  img: image 'glyphs.png'
+  anchor: {x:49, y:26}
+
+  red: {x:0,y:0, num:2}
+  blue: {x:0,y:1, num:2}
+
+  tileWidth: 99
+  tileHeight: 53
 
 selector =
   img: image 'Selector.png'
@@ -288,7 +299,7 @@ class Stone
     @age = 0
 
   draw: ->
-    drawAtIsoXY stoneImg, @x, @y
+    drawAtIsoXY glyphs, @x, @y, @owner, if @age == 0 then 0 else 1
     ###
     ctx.save()
     ctx.translate origin.x, origin.y
@@ -365,7 +376,7 @@ isoToScreen = (sprite, x, y) ->
   h: sprite.img.height
 
 # sprite is {img, anchor}
-drawAtIsoXY = (sprite, x, y, animName, frame, moody) ->
+drawAtIsoXY = (sprite, x, y, animName, frame = 0, moody = false) ->
   ctx.save()
   ctx.translate origin.x, origin.y
   px = tileW/2*(x+y)
@@ -889,10 +900,16 @@ bfs = (map, origin, distance, cull) ->
 
 manhattan = (a,b) -> Math.abs(a.x-b.x) + Math.abs(a.y-b.y)
 
+hoveredUnit = null
+
 suspendAnimation -> turnStart()
 
 atom.run
   update: (dt) ->
+    {tileX, tileY} = screenToMap atom.input.mouse.x, atom.input.mouse.y
+    u = unitAt tileX, tileY
+    hoveredUnit = u
+
     if currentAnimation
       shadowedTiles = null
       speed = if atom.input.down 'accelerate' then 5 else 1
@@ -1104,6 +1121,8 @@ atom.run
 
     time_passed_px = ((currentDay - 1) / 9) * sliderbar.width
     ctx.drawImage sliderbar, 0, 0, time_passed_px, sliderbar.height, 493, 45, time_passed_px, sliderbar.height
+    for d, i in unitsToMove when d.length > 0
+      ctx.drawImage indicator, 490 + (i-1) * sliderbar.width/9, 54
 
     ctx.fillStyle = currentPlayer
     ctx.fillText currentPlayer, 100, 600
@@ -1112,6 +1131,12 @@ atom.run
     if state is 'act' and pendingActions.length is 0 and !currentAnimation
       for a in selected.type.abilities.concat(['Wait'])
         if actionSprites[a] then drawAtIsoXY actionSprites[a], selected.x, selected.y
+
+    if hoveredUnit
+      ctx.drawImage unit_stats, 0, 0
+      ctx.drawImage player_text[hoveredUnit.owner], 0, 30
+      ctx.drawImage hp_text, 155, 60
+      ctx.drawImage hp_num[hoveredUnit.hp], 240, 60
 
     if reversing
       reversingState = Math.min(reversingState + 0.015, 0.5)
