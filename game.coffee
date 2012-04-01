@@ -49,7 +49,15 @@ wiz =
   redwarpbotright:{x: 0, y:3, num:4}
   redwarpbotleft: {x: 5, y:3, num:4}
 
-  # TODO: Death animations
+  redattacktopleft: {x: 0, y:2, num:4}
+  redattacktopright:{x: 5, y:2, num:4}
+  redattackbotright:{x: 0, y:3, num:4}
+  redattackbotleft: {x: 5, y:3, num:4}
+
+  reddeathtopleft: {x: 9, y:3, num:4}
+  reddeathtopright:{x: 13,y:3, num:4}
+  reddeathbotright:{x: 13,y:2, num:4}
+  reddeathbotleft: {x: 9, y:2, num:4}
 
   redstonebotleft: {x: 0, y:4, num:10}
   redstonebotright:{x: 10, y:4, num:10}
@@ -66,7 +74,15 @@ wiz =
   bluewarpbotright:{x: 0, y:9, num:4}
   bluewarpbotleft: {x: 5, y:9, num:4}
 
-  # DEath.
+  blueattacktopleft: {x: 0, y:8, num:4}
+  blueattacktopright:{x: 5, y:8, num:4}
+  blueattackbotright:{x: 0, y:9, num:4}
+  blueattackbotleft: {x: 5, y:9, num:4}
+
+  bluedeathtopleft: {x: 9, y:9, num:4}
+  bluedeathtopright:{x: 13,y:9, num:4}
+  bluedeathbotright:{x: 13,y:8, num:4}
+  bluedeathbotleft: {x: 9, y:8, num:4}
 
   bluestonebotleft: {x: 0, y:10, num:10}
   bluestonebotright:{x: 10, y:10, num:10}
@@ -95,6 +111,25 @@ dragon =
   bluewalktopleft: {x:0, y:7, num:9}
 
   # Attack and idle animations
+  redattackbotleft: {x:0, y:8, num:5}
+  redattackbotright: {x:0, y:9, num:5}
+  redattacktopright: {x:5, y:8, num:5}
+  redattacktopleft: {x:5, y:9, num:5}
+
+  blueattackbotleft: {x:0, y:10, num:5}
+  blueattackbotright: {x:0, y:11, num:5}
+  blueattacktopright: {x:5, y:10, num:5}
+  blueattacktopleft: {x:5, y:11, num:5}
+
+  reddeathbotright: {x:0, y:13, num:4}
+  reddeathbotleft:  {x:0, y:14, num:4}
+  reddeathtopleft:  {x:0, y:15, num:4}
+  reddeathtopright: {x:0, y:16, num:4}
+
+  bluedeathbotright: {x:4, y:13, num:4}
+  bluedeathbotleft:  {x:4, y:14, num:4}
+  bluedeathtopleft:  {x:4, y:15, num:4}
+  bluedeathtopright: {x:4, y:16, num:4}
 
   anchor: {x:75, y:120}
 
@@ -339,6 +374,43 @@ class MoveAction
 removeUnit = (unit) ->
   units = (u for u in units when u != unit)
 
+
+class AttackAnim extends Animation
+  constructor: (@attacker, @victim, @died, direction, @callback) ->
+    duration = if @died then 2 else 1
+    super duration, direction
+    @frames =      [0,1,2,3,2,3,2,1,0,0,0,0]
+    deathframes =  [0,0,0,0,0,0,0,1,2,3,3,3]
+
+    @step(0)
+
+    dx = @victim.x - @attacker.x
+    dy = @victim.y - @attacker.y
+    facing = facingDirection dx, dy
+
+    anim = this
+    @attacker.animation = ->
+      console.log @owner, facing
+      drawAtIsoXY @type.sprites, @x, @y, "#{@owner}attack#{facing}", anim.frames[anim.frame]
+    facing = facingDirection dx, dy
+    if @died
+      @victim.animation = ->
+        console.log @owner, facing
+        drawAtIsoXY @type.sprites, @x, @y, "#{@owner}deathbotleft", deathframes[anim.frame]
+
+  step: (dt) ->
+    super dt
+
+    @frame = Math.floor(@t * @frames.length / @duration)
+    @frame = Math.min @frame, @frames.length - 1
+    
+    return @isDone()
+
+  end: ->
+    @attacker.animation = null
+    @victim.animation = null
+    @callback?()
+
 class AttackAction
   constructor: (@u, @x, @y) ->
     # u is attacking the tile at x,y
@@ -350,7 +422,8 @@ class AttackAction
     target.hp-- if target.owner != @u.owner
     # 3. set its state to dead if its hp is 0 and if we killed it, store that fact
     @killed = target if target.hp <= 0
-    removeUnit target if @killed
+    currentAnimation = new AttackAnim @u, target, @killed, 'forward', if @killed then ->
+      removeUnit target
 
 
   unapply: ->
@@ -364,6 +437,8 @@ class AttackAction
 
     # 2. add 1 hp to unit at x,y
     target.hp++ if target.owner != @u.owner
+
+    currentAnimation = new AttackAnim @u, target, @killed, 'backward'
 
 # Used for both placing stones and warping in units
 class PlaceStoneWarpAnimation extends Animation
