@@ -841,6 +841,7 @@ perform = ({action, direction}) ->
     action.apply()
   else
     action.unapply()
+  action
 
 suspendAnimation = (f) ->
   throw 'shouldnt be any current anim' if currentAnimation
@@ -850,6 +851,15 @@ suspendAnimation = (f) ->
     currentAnimation?.end?()
     currentAnimation = null
   pendingActions = []
+
+skipAnimations = ->
+  currentAnimation?.end?()
+  currentAnimation = null
+
+  while a = pendingActions.pop()
+    perform a
+    currentAnimation?.end?()
+    currentAnimation = null
 
 back = ->
   action = past.pop()
@@ -1012,9 +1022,13 @@ atom.run
 
     if currentAnimation
       shadowedTiles = null
-      speed = if atom.input.down 'accelerate' then 8 else 1
-      # update anim
-      completed = currentAnimation.step(dt * speed)
+      if atom.input.pressed 'cancel'
+        skipAnimations()
+      else
+        speed = if atom.input.down 'accelerate' then 8 else 1
+        # update anim
+        completed = currentAnimation.step(dt * speed)
+
       if completed
         currentAnimation.end?()
         currentAnimation = null
