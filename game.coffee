@@ -216,6 +216,12 @@ movementShadow =
   img: image 'Movementshadow.png'
   anchor: {x:83, y:59}
 
+gameoverscreen =
+  red: image 'redteamwinscreen.png'
+  blue: image 'blueteamwinscreen.png'
+
+splashscreen = image 'titlescreen.png'
+
 actionSprites =
   Glyph:
     img: image 'selector_glyph.png'
@@ -229,14 +235,6 @@ actionSprites =
   Attack:
     img: image 'selector_attack.png'
     anchor: {x:100, y:90}
-
-
-reversing = false
-reversingState = 0
-
-currentAnimation = null
-
-shadowedTiles = null
 
 dot = (a, b) -> a.x * b.x + a.y * b.y
 mag = (a) -> Math.sqrt(a.x * a.x + a.y * a.y)
@@ -263,7 +261,89 @@ ctx = atom.ctx
 unitTypes =
   wizard: {hp:2, abilities:['Warp', 'Glyph'], speed:2, sprites:wiz}
   dragon: {hp:3, abilities:['Attack'], speed:3, sprites:dragon}
-  knight: {hp:1, abilities:['Attack'], speed:5, sprites:knight}
+  knight: {hp:1, abilities:['Attack'], speed:4, sprites:knight}
+
+
+reversing = false
+reversingState = 0
+
+currentAnimation = null
+
+shadowedTiles = null
+
+
+units = null
+warpstones = []
+currentDay = 0
+currentPlayer = 'red'
+selected = null
+state = 'splash'
+winner = null
+selectedAction = null
+warpee = null
+past = null
+future = null
+pendingActions = []
+endDays = []
+
+reset = ->
+  reversing = false
+  reversingState = 0
+
+  currentAnimation = null
+
+  shadowedTiles = null
+
+  units = [
+    new Unit 0, 1, 'wizard', 'red'
+    new Unit 1, 8, 'wizard', 'red'
+    new Unit 1, 5, 'dragon', 'red'
+
+    new Unit 1, 2, 'knight', 'red'
+    new Unit 2, 8, 'knight', 'red'
+
+
+    new Unit 9, 1, 'wizard', 'blue'
+    new Unit 10, 8, 'wizard', 'blue'
+    new Unit 9, 5, 'dragon', 'blue'
+
+    new Unit 9, 2, 'knight', 'blue'
+    new Unit 9, 7, 'knight', 'blue'
+  ]
+
+  warpstones = []
+
+  currentDay = 0
+  currentPlayer = 'red'
+
+  selected = null
+
+  # states are:
+  # - Pick which unit to move 'select'
+  # - Pick where to move it   'move'
+  # - Pick what action to do  'act'
+  # - Pick where to target with your action 'target'
+  # - Pick destination warp stone 'warptarget'
+  state = 'select'
+
+  winner = null
+
+  # when we're in the 'target' state, this specifies the selected unit action (Warp, Attack, Glyph, etc)
+  selectedAction = null
+  warpee = null
+
+  # action is {apply:->, unapply:->}
+  past = []
+  future = (new EndDay for [1..20])
+
+  pendingActions = [] # [{action:a,direction:'forward'}]
+
+  endDays = (d for d in future)
+  endDays.reverse()
+
+  suspendAnimation -> turnStart()
+
+
 
 class Unit
   constructor: (@x, @y, @type, @owner = 'red') ->
@@ -302,46 +382,10 @@ class Stone
 
   z: 1
 
-units = [
-  new Unit 5, 5, 'wizard', 'red'
-  #new Unit 1, 3, 'wizard', 'red'
-  #new Unit 1, 4, 'dragon', 'red'
-#  new Unit 1, 5, 'dragon', 'red'
-
-  new Unit 5, 6, 'knight', 'red'
-  new Unit 5, 7, 'knight', 'red'
-
-  #new Unit 10, 1, 'wizard', 'blue'
-  #new Unit 10, 2, 'wizard', 'blue'
-  #new Unit 10, 3, 'dragon', 'blue'
-#  new Unit 10, 4, 'dragon', 'blue'
-
-  new Unit 3, 5, 'knight', 'blue'
-#  new Unit 10, 6, 'knight', 'blue'
-]
-
-warpstones = []
-
-currentDay = 0
-currentPlayer = 'red'
-
-selected = null
 sel = (u) ->
   selected?.selected = false
   selected = u
   u?.selected = true
-
-# states are:
-# - Pick which unit to move 'select'
-# - Pick where to move it   'move'
-# - Pick what action to do  'act'
-# - Pick where to target with your action 'target'
-# - Pick destination warp stone 'warptarget'
-state = 'select'
-
-# when we're in the 'target' state, this specifies the selected unit action (Warp, Attack, Glyph, etc)
-selectedAction = null
-warpee = null
 
 unitAt = (x,y) ->
   for unit in units
@@ -396,9 +440,6 @@ facingDirection = (dx, dy) ->
     'topleft'
   else #if dy is 1
     'botright'
-
-# Bump the unit to an empty space. Return a function which reverts the bump
-bump = (unit) ->
 
 
 class Animation
@@ -762,15 +803,6 @@ class EndDay
 
     w.age-- for w in warpstones
 
-# action is {apply:->, unapply:->}
-past = []
-future = (new EndDay for [1..20])
-
-pendingActions = [] # [{action:a,direction:'forward'}]
-
-endDays = (d for d in future)
-endDays.reverse()
-
 #past.push new EndDay
 
 perform = ({action, direction}) ->
@@ -837,6 +869,10 @@ turnStart = ->
   for d, i in unitsToMove
     if d.length
       return goToEvening i
+
+  # Game over!!!!!!
+  state = 'gameover'
+  winner = if currentPlayer is 'red' then 'blue' else 'red'
 
   maybeEndTurn()
 
@@ -915,10 +951,12 @@ bfs = (map, origin, distance, cull) ->
 
 manhattan = (a,b) -> Math.abs(a.x-b.x) + Math.abs(a.y-b.y)
 
-suspendAnimation -> turnStart()
-
 atom.run
   update: (dt) ->
+    if state in ['splash', 'gameover']
+      reset() if atom.input.pressed 'click'
+      return
+
     if currentAnimation
       shadowedTiles = null
       speed = if atom.input.down 'accelerate' then 8 else 1
@@ -983,17 +1021,21 @@ atom.run
       when 'move'
         if atom.input.pressed 'click'
           # TODO: BFS
-          path = shadowedTiles["#{tileX},#{tileY}"]
-          w = stoneAt tileX, tileY
+          if (u = unitAt tileX, tileY) and u.owner is currentPlayer
+            sel u
+            shadowedTiles = bfs bg, u, u.type.speed
+          else
+            path = shadowedTiles["#{tileX},#{tileY}"]
+            w = stoneAt tileX, tileY
 
-          # Empty move. Add a move action anyway to tire the unit.
-          path = [] if selected.x is tileX and selected.y is tileY
+            # Empty move. Add a move action anyway to tire the unit.
+            path = [] if selected.x is tileX and selected.y is tileY
 
-          if path
-            future.push new MoveAction selected, path
-            forward()
-            state = 'act'
-            shadowedTiles = null
+            if path
+              future.push new MoveAction selected, path
+              forward()
+              state = 'act'
+              shadowedTiles = null
 
         else if atom.input.pressed 'cancel'
           # go back to select and unselect the unit
@@ -1109,6 +1151,13 @@ atom.run
         # cancel: go back to act
 
   draw: ->
+    if state is 'splash'
+      ctx.drawImage splashscreen, 0, 0
+      return
+    if state is 'gameover'
+      ctx.drawImage gameoverscreen[winner], 0, 0
+      return
+
     #ctx.fillStyle = 'black'
     #ctx.fillRect 0,0, canvas.width, canvas.height
     ctx.drawImage bg.back, 0, 0
