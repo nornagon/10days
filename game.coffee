@@ -104,15 +104,15 @@ dragon =
   tileWidth: 150
   tileHeight: 150
 
-  redtopleft: {x:0, y:1, num:1}
-  redtopright: {x:0, y:1, num:1}
-  redbotleft: {x:0, y:1, num:1}
+  redbotleft: {x:0, y:0, num:1}
   redbotright: {x:0, y:1, num:1}
+  redtopright: {x:0, y:2, num:1}
+  redtopleft: {x:0, y:3, num:1}
 
-  bluetopleft: {x:0, y:4, num:1}
-  bluetopright: {x:0, y:4, num:1}
   bluebotleft: {x:0, y:4, num:1}
-  bluebotright: {x:0, y:4, num:1}
+  bluebotright: {x:0, y:5, num:1}
+  bluetopright: {x:0, y:6, num:1}
+  bluetopleft: {x:0, y:7, num:1}
 
   redwalkbotleft: {x:0, y:0, num:9}
   redwalkbotright: {x:0, y:1, num:9}
@@ -151,9 +151,6 @@ stoneImg =
   img: image 'stone.png'
   anchor: {x:38, y:20}
 
-selectorImg = new Image
-selectorImg.src = 'Selector.png'
-
 selector =
   img: image 'Selector.png'
   anchor: {x:45, y:50}
@@ -161,6 +158,20 @@ selector =
 movementShadow =
   img: image 'Movementshadow.png'
   anchor: {x:83, y:59}
+
+actionSprites =
+  Glyph:
+    img: image 'selector_glyph.png'
+    anchor: {x:100, y:90}
+  Warp:
+    img: image 'selector_warp.png'
+    anchor: {x:40, y:120}
+  Wait:
+    img: image 'selector_wait.png'
+    anchor: {x:-20, y:90}
+  Attack:
+    img: image 'selector_attack.png'
+    anchor: {x:100, y:90}
 
 
 reversing = false
@@ -191,7 +202,7 @@ ctx = atom.ctx
 
 
 unitTypes =
-  wizard: {hp:2, abilities:['Warp', 'Stone'], speed:2, sprites:wiz}
+  wizard: {hp:2, abilities:['Warp', 'Glyph'], speed:2, sprites:wiz}
   dragon: {hp:3, abilities:['Attack'], speed:3, sprites:dragon}
 
 class Unit
@@ -275,6 +286,15 @@ stoneAt = (x, y) ->
 
 lerp = (from, to, t) ->
   {x:from.x*(1-t)+to.x*t, y:from.y*(1-t)+to.y*t}
+
+isoToScreen = (sprite, x, y) ->
+  px = tileW/2*(x+y)
+  py = tileH/2*(-x+y)
+
+  x: px+tileW/2-sprite.anchor.x + origin.x
+  y: py-sprite.anchor.y + origin.y
+  w: sprite.img.width
+  h: sprite.img.height
 
 # sprite is {img, anchor}
 drawAtIsoXY = (sprite, x, y, animName, frame) ->
@@ -658,7 +678,6 @@ back = ->
   action
 
 forward = ->
-  console.log 'fwd'
   action = future.pop()
   return unless action
   pendingActions.push {action, direction:'forward'}
@@ -844,18 +863,29 @@ atom.run
           sel null
 
       when 'act'
-        if atom.input.pressed 'attack'
-          state = 'target'
-          selectedAction = 'Attack'
-        else if atom.input.pressed 'warp'
-          state = 'target'
-          selectedAction = 'Warp'
-        else if atom.input.pressed 'warpstone'
-          state = 'target'
-          selectedAction = 'Place Warpstone'
-        else if atom.input.pressed 'wait'
-          future.push new WaitAction selected
-          currentUnitActed()
+        if atom.input.pressed 'click'
+          action = null
+          for a in selected.type.abilities.concat(['Wait'])
+            if actionSprites[a]
+              {x, y, w, h} = isoToScreen actionSprites[a], selected.x, selected.y
+              console.log x, y, w, h, atom.input.mouse.x, atom.input.mouse.y
+              if x <= atom.input.mouse.x <= x+w and y <= atom.input.mouse.y <= y+h
+                action = a
+                break
+          switch action
+            when 'Attack'
+              state = 'target'
+              selectedAction = 'Attack'
+            when 'Warp'
+              state = 'target'
+              selectedAction = 'Warp'
+            when 'Glyph'
+              state = 'target'
+              selectedAction = 'Place Warpstone'
+            when 'Wait'
+              future.push new WaitAction selected
+              currentUnitActed()
+              
 
         else if atom.input.pressed 'cancel'
           # Unmove.
@@ -958,6 +988,10 @@ atom.run
     ctx.fillStyle = currentPlayer
     ctx.fillText currentPlayer, 100, 600
     ctx.fillText currentDay, 140, 600
+
+    if state is 'act' and pendingActions.length is 0 and !currentAnimation
+      for a in selected.type.abilities.concat(['Wait'])
+        if actionSprites[a] then drawAtIsoXY actionSprites[a], selected.x, selected.y
 
     if reversing
       reversingState = Math.min(reversingState + 0.015, 0.5)
