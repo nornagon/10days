@@ -43,6 +43,10 @@ hp_text = image 'HP.png'
 hp_num = [image('1.png'), image('1.png'), image('2.png'), image('3.png')]
 indicator = image 'indicator.png'
 cloud = image 'cloud.png'
+spark =
+  img: image 'spark.png'
+  tileWidth: 150
+  tileHeight: 75
 
 wiz =
   img: image 'Wizard Spritesheet.png'
@@ -967,6 +971,9 @@ manhattan = (a,b) -> Math.abs(a.x-b.x) + Math.abs(a.y-b.y)
 
 hoveredUnit = null
 
+sparkFrame = 10
+sparkX = 0
+
 atom.run
   update: (dt) ->
     if state in ['splash', 'gameover']
@@ -1216,6 +1223,14 @@ atom.run
       ctx.drawImage hp_text, 155, 60
       ctx.drawImage hp_num[hoveredUnit.hp], 240, 60
 
+    tile_x = Math.floor(sparkFrame) % 3
+    tile_y = Math.floor sparkFrame / 3
+    sparkFrame += 0.25 * (if reversing then -1 else 1)
+    if sparkFrame > 150+Math.floor(Math.random()*100)
+      sparkFrame = 0
+      sparkX = if Math.random() < 0.5 then 1000 else 20
+    if sparkFrame < 6
+      ctx.drawImage spark.img, tile_x * spark.tileWidth, tile_y * spark.tileHeight, spark.tileWidth, spark.tileHeight, sparkX, canvas.height - spark.tileHeight - 40, spark.tileWidth, spark.tileHeight
 
     cloudSpeed = 1
     cloudX += cloudSpeed * (if reversing then -1 else 1)
