@@ -33,6 +33,7 @@ bg =
 
 wiz =
   img: image 'Wizard Spritesheet.png'
+  moody: image 'Wizard Spritesheetmoody.png'
   tileWidth: 100
   tileHeight: 100
 
@@ -101,6 +102,8 @@ wiz =
 
 dragon =
   img: image 'dragonshheeet.png'
+  moody: image 'dragonshheeet.png'
+  #moody: image 'dragonshheeet muted.png'
   tileWidth: 150
   tileHeight: 150
 
@@ -147,6 +150,55 @@ dragon =
 
   anchor: {x:75, y:120}
 
+knight =
+  #img: image 'Knight_Texsheet.png'
+  # moody: image 'Knight_Texsheetmuted.png'
+  tileWidth: 100
+  tileHeight: 100
+
+  redbotleft: {x:0, y:1, num:1}
+  redbotright: {x:0, y:0, num:1}
+  redtopright: {x:8, y:1, num:1}
+  redtopleft: {x:8, y:0, num:1}
+
+  bluebotleft: {x:0, y:7, num:1}
+  bluebotright: {x:0, y:6, num:1}
+  bluetopright: {x:8, y:10, num:1}
+  bluetopleft: {x:8, y:11, num:1}
+
+  redwalkbotleft: {x:0, y:1, num:8}
+  redwalkbotright: {x:0, y:0, num:8}
+  redwalktopright: {x:8, y:1, num:8}
+  redwalktopleft: {x:8, y:0, num:8}
+
+  bluewalkbotleft: {x:0, y:7, num:8}
+  bluewalkbotright: {x:0, y:6, num:8}
+  bluewalktopright: {x:8, y:10, num:8}
+  bluewalktopleft: {x:8, y:11, num:8}
+
+  # Attack and idle animations
+  redattackbotleft: {x:0, y:4, num:13}
+  redattackbotright: {x:0, y:3, num:13}
+  redattacktopright: {x:0, y:6, num:13}
+  redattacktopleft: {x:0, y:5, num:13}
+
+  blueattackbotleft: {x:0, y:10, num:13}
+  blueattackbotright: {x:0, y:9, num:13}
+  blueattacktopright: {x:5, y:11, num:13}
+  blueattacktopleft: {x:5, y:12, num:13}
+
+  reddeathbotright: {x:15, y:3, num:4}
+  reddeathbotleft:  {x:15, y:5, num:4}
+  reddeathtopleft:  {x:15, y:4, num:4}
+  reddeathtopright: {x:15, y:6, num:4}
+
+  bluedeathbotright: {x:15, y:9, num:4}
+  bluedeathbotleft:  {x:15, y:10, num:4}
+  bluedeathtopleft:  {x:15, y:11, num:4}
+  bluedeathtopright: {x:15, y:12, num:4}
+
+  anchor: {x: 50, y: 91}
+
 stoneImg =
   img: image 'stone.png'
   anchor: {x:38, y:20}
@@ -179,6 +231,8 @@ reversingState = 0
 
 currentAnimation = null
 
+shadowedTiles = null
+
 dot = (a, b) -> a.x * b.x + a.y * b.y
 mag = (a) -> Math.sqrt(a.x * a.x + a.y * a.y)
 proj = (a, b) -> dot(a,b) / mag(b)
@@ -204,6 +258,7 @@ ctx = atom.ctx
 unitTypes =
   wizard: {hp:2, abilities:['Warp', 'Glyph'], speed:2, sprites:wiz}
   dragon: {hp:3, abilities:['Attack'], speed:3, sprites:dragon}
+  knight: {hp:2, abilities:['Attack'], speed:2, sprites:knight}
 
 class Unit
   constructor: (@x, @y, @type, @owner = 'red') ->
@@ -218,7 +273,7 @@ class Unit
     if @selected then drawAtIsoXY selector, @x, @y
     if @alpha != 1
       ctx.globalAlpha = @alpha
-    drawAtIsoXY @type.sprites, @x, @y, "#{@owner}#{@facing}", 0
+    drawAtIsoXY @type.sprites, @x, @y, "#{@owner}#{@facing}", 0, @ not in unitsToMove[currentDay]
     ctx.globalAlpha = 1
 
   z: 0
@@ -243,13 +298,21 @@ class Stone
   z: 1
 
 units = [
+  new Unit 1, 2, 'wizard', 'red'
   new Unit 1, 3, 'wizard', 'red'
-  new Unit 2, 4, 'wizard', 'red'
-  new Unit 2, 1, 'wizard', 'blue'
-  new Unit 2, 2, 'wizard', 'blue'
+  new Unit 1, 4, 'dragon', 'red'
+#  new Unit 1, 5, 'dragon', 'red'
 
-  new Unit 5, 4, 'dragon', 'red'
-  new Unit 6, 1, 'dragon', 'blue'
+#  new Unit 1, 6, 'knight', 'red'
+#  new Unit 1, 7, 'knight', 'red'
+
+  new Unit 10, 1, 'wizard', 'blue'
+  new Unit 10, 2, 'wizard', 'blue'
+  new Unit 10, 3, 'dragon', 'blue'
+#  new Unit 10, 4, 'dragon', 'blue'
+
+#  new Unit 10, 5, 'knight', 'blue'
+#  new Unit 10, 6, 'knight', 'blue'
 ]
 
 warpstones = []
@@ -271,7 +334,7 @@ sel = (u) ->
 # - Pick destination warp stone 'warptarget'
 state = 'select'
 
-# when we're in the 'target' state, this specifies the selected unit action (Warp, Attack, Place Warpstone, etc)
+# when we're in the 'target' state, this specifies the selected unit action (Warp, Attack, Glyph, etc)
 selectedAction = null
 warpee = null
 
@@ -297,12 +360,13 @@ isoToScreen = (sprite, x, y) ->
   h: sprite.img.height
 
 # sprite is {img, anchor}
-drawAtIsoXY = (sprite, x, y, animName, frame) ->
+drawAtIsoXY = (sprite, x, y, animName, frame, moody) ->
   ctx.save()
   ctx.translate origin.x, origin.y
   px = tileW/2*(x+y)
   py = tileH/2*(-x+y)
   
+  img = if moody then sprite.moody else sprite.img
   if animName
     a = sprite[animName]
 
@@ -311,9 +375,9 @@ drawAtIsoXY = (sprite, x, y, animName, frame) ->
     tx = tw * (a.x + frame)
     ty = th * a.y
 
-    ctx.drawImage sprite.img, tx, ty, tw, th, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y, tw, th
+    ctx.drawImage img, tx, ty, tw, th, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y, tw, th
   else
-    ctx.drawImage sprite.img, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y
+    ctx.drawImage img, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y
   
   ctx.restore()
 
@@ -357,7 +421,8 @@ class MoveAnim extends Animation
 
       pos = lerp from, to, (anim.section % 1)
       frame = Math.floor(anim.t / anim.frameTime) % 8
-      drawAtIsoXY @type.sprites, pos.x, pos.y, "#{unit.owner}walk#{facing}", frame
+      drawAtIsoXY @type.sprites, pos.x, pos.y, "#{unit.owner}walk#{facing}", frame, @ not in unitsToMove[currentDay]
+
 
     @step(0)
 
@@ -403,12 +468,14 @@ class MoveAction
     @prevX = @u.x
     @prevY = @u.y
   apply: ->
+    return unless @u in units
     #@u.x = @x
     #@u.y = @y
     @u.tired = true
     @prevFacing = @u.facing
     currentAnimation = new MoveAnim @u, @path, 'forward' if @path.length
   unapply: ->
+    return unless @u in units
     #@u.x = @prevX
     #@u.y = @prevY
     @u.tired = false
@@ -435,12 +502,13 @@ class AttackAnim extends Animation
     anim = this
     @attacker.animation = ->
       console.log @owner, facing
-      drawAtIsoXY @type.sprites, @x, @y, "#{@owner}attack#{facing}", anim.frames[anim.frame]
+      drawAtIsoXY @type.sprites, @x, @y, "#{@owner}attack#{facing}", anim.frames[anim.frame], @ not in unitsToMove[currentDay]
+
     facing = facingDirection dx, dy
     if @died
       @victim.animation = ->
         console.log @owner, facing
-        drawAtIsoXY @type.sprites, @x, @y, "#{@owner}deathbotleft", deathframes[anim.frame]
+        drawAtIsoXY @type.sprites, @x, @y, "#{@owner}deathbotleft", deathframes[anim.frame], @ not in unitsToMove[currentDay]
 
   step: (dt) ->
     super dt
@@ -459,35 +527,41 @@ class AttackAction
   constructor: (@u, @x, @y) ->
     # u is attacking the tile at x,y
   apply: ->
+    return if @u not in units
     # 1. find a live unit at x,y
     target = unitAt @x, @y
     return unless target
     # 2. deal 1 damage to it
-    target.hp-- if target.owner != @u.owner
+    return if target.owner == @u.owner
+
+    target.hp--
     # 3. set its state to dead if its hp is 0 and if we killed it, store that fact
     @killed = target if target.hp <= 0
-    currentAnimation = new AttackAnim @u, target, @killed, 'forward', if @killed then ->
-      removeUnit target
-
+    currentAnimation = new AttackAnim @u, target, @killed, 'forward', =>
+      removeUnit target if @killed
 
   unapply: ->
     # 1. if we killed a unit last time we were simulated, find a dead unit at x,y and revive it
+    return if @u not in units
+
     if @killed
       target = @killed
+      throw new Error 'Overlapping units' if unitAt target.x, target.y
       units.push target
     else
       target = unitAt @x, @y
       return unless target
 
     # 2. add 1 hp to unit at x,y
-    target.hp++ if target.owner != @u.owner
+    return if target.owner == @u.owner
 
+    target.hp++
     currentAnimation = new AttackAnim @u, target, @killed, 'backward'
 
 # Used for both placing stones and warping in units
 class PlaceStoneWarpAnimation extends Animation
   # Warpee is optional.
-  constructor: (@unit, x, y, direction, @warpee) ->
+  constructor: (@unit, x, y, direction, @warpee, @callback) ->
     super 1, direction
 
     dx = x - @unit.x
@@ -497,7 +571,8 @@ class PlaceStoneWarpAnimation extends Animation
     anim = this
     @unit.animation = ->
       frame = Math.floor(Math.min(anim.t / anim.duration * @type.sprites[a].num, @type.sprites[a].num))
-      drawAtIsoXY @type.sprites, @x, @y, a, frame
+      drawAtIsoXY @type.sprites, @x, @y, a, frame, @ not in unitsToMove[currentDay]
+
 
     @step(0)
 
@@ -510,6 +585,7 @@ class PlaceStoneWarpAnimation extends Animation
   end: ->
     @unit.animation = null
     @warpee?.alpha = 1
+    @callback?()
 
 class PlaceStone
   constructor: (@unit, @x, @y) ->
@@ -519,10 +595,12 @@ class PlaceStone
     warpstones.push @stone
 
   apply: ->
+    return unless @unit in units
     currentAnimation = new PlaceStoneWarpAnimation @unit, @x, @y, 'forward'
     #warpstones.push @stone
 
   unapply: ->
+    return unless @unit in units
     currentAnimation = new PlaceStoneWarpAnimation @unit, @x, @y, 'backward'
     #warpstones = (w for w in warpstones when w != @stone)
 
@@ -530,13 +608,14 @@ class WarpIn
   constructor: (@warpee, @summoner) ->
 
   apply: ->
+    throw new Error 'Overlapping units in warpin' if unitAt @warpee.x, @warpee.y
     units.push @warpee
     @warpee.tired = true
     currentAnimation = new PlaceStoneWarpAnimation @summoner, @warpee.x, @warpee.y, 'forward', @warpee
 
   unapply: ->
-    removeUnit @warpee
-    currentAnimation = new PlaceStoneWarpAnimation @summoner, @warpee.x, @warpee.y, 'backward', @warpee
+    currentAnimation = new PlaceStoneWarpAnimation @summoner, @warpee.x, @warpee.y, 'backward', @warpee, ->
+      removeUnit @warpee
 
 class WarpOutAnimation extends Animation
   constructor: (@warpee, @warper, direction, @callback) ->
@@ -551,7 +630,8 @@ class WarpOutAnimation extends Animation
 
     anim = this
     @warper.animation = ->
-      drawAtIsoXY @type.sprites, @x, @y, "#{anim.warper.owner}warp#{facing}", anim.frames[anim.frame]
+      drawAtIsoXY @type.sprites, @x, @y, "#{anim.warper.owner}warp#{facing}", anim.frames[anim.frame], @ not in unitsToMove[currentDay]
+
 
   step: (dt) ->
     super dt
@@ -574,13 +654,20 @@ class WarpOut
 
   apply: ->
 #    @warper.tired = true
-    currentAnimation = new WarpOutAnimation @warpee, @warper, 'forward', ->
-      removeUnit @warpee if @direction is 'forward'
+   
+    if @warpee in units
+      @acted = true
+
+      currentAnimation = new WarpOutAnimation @warpee, @warper, 'forward', =>
+        removeUnit @warpee
+    else
+      @acted = false
 
   unapply: ->
-#    @warper.tired = false
-    units.push @warpee
-    currentAnimation = new WarpOutAnimation @warpee, @warper, 'backward'
+    if @acted
+      throw new Error 'Overlapping units in warpout' if unitAt @warpee.x, @warpee.y
+      units.push @warpee
+      currentAnimation = new WarpOutAnimation @warpee, @warper, 'backward'
 
 class WaitAction
   constructor: (@u) ->
@@ -731,11 +818,20 @@ maybeEndTurn = ->
   turnStart()
 
 removeActiveUnit = (unit, d) ->
-  unitsToMove[d] = (u for u in unitsToMove[d] when u != unit)
+  if d?
+    unitsToMove[d] = (u for u in unitsToMove[d] when u != unit)
+  else
+    removeActiveUnit(unit, d) for d in [0..19]
+
+todoIdle = []
+nextIdle = (f) -> todoIdle.push f
+doIdle = -> f() while f = todoIdle.shift()
 
 currentUnitActed = ->
   forward()
-  removeActiveUnit selected, currentDay
+  do (selected, currentDay) ->
+    nextIdle ->
+      removeActiveUnit selected, currentDay
   sel null
   shadowedTiles = null
   state = 'select'
@@ -785,13 +881,14 @@ bfs = (map, origin, distance, cull) ->
 #suspendAnimation -> goToEvening 0
 #future.push new WarpIn(new Unit 3, 3, 'wizard', 'red')
 
-suspendAnimation -> turnStart()
+manhattan = (a,b) -> Math.abs(a.x-b.x) + Math.abs(a.y-b.y)
 
-shadowedTiles = null
+suspendAnimation -> turnStart()
 
 atom.run
   update: (dt) ->
     if currentAnimation
+      shadowedTiles = null
       speed = if atom.input.down 'accelerate' then 5 else 1
       # update anim
       completed = currentAnimation.step(dt * speed)
@@ -804,6 +901,8 @@ atom.run
       a = pendingActions.shift()
       perform a
       return if currentAnimation
+
+    doIdle()
 
     reversing = false
 
@@ -881,11 +980,25 @@ atom.run
               selectedAction = 'Warp'
             when 'Glyph'
               state = 'target'
-              selectedAction = 'Place Warpstone'
+              selectedAction = 'Glyph'
             when 'Wait'
               future.push new WaitAction selected
               currentUnitActed()
-              
+          if state == 'target'
+            shadowedTiles = {}
+            switch selectedAction
+              when 'Warp'
+                shadowedTiles[[u.x,u.y]] = [u] for u in units when manhattan(u,selected) <= 1
+              when 'Attack'
+                {x:sx, y:sy} = selected
+                adj = [[sx+1,sy],[sx-1,sy],[sx,sy+1],[sx,sy-1]]
+                shadowedTiles[u] = [{x:u[0],y:u[1]}] for u in adj when bg.canEnter u[0],u[1]
+              when 'Glyph'
+                console.log 'glyph'
+                {x:sx, y:sy} = selected
+                adj = [[sx+1,sy],[sx-1,sy],[sx,sy+1],[sx,sy-1]]
+                for u in adj when bg.canEnter(u[0],u[1]) and !unitAt(u[0],u[1])? and !stoneAt(u[0], u[1])?
+                  shadowedTiles[u] = [{x:u[0],y:u[1]}]
 
         else if atom.input.pressed 'cancel'
           # Unmove.
@@ -906,18 +1019,19 @@ atom.run
                 future.push new AttackAction selected, tileX, tileY
                 currentUnitActed()
 
-            when 'Place Warpstone'
+            when 'Glyph'
               if m is 1 and !stoneAt(tileX, tileY)
                 future.push new PlaceStone selected, tileX, tileY
                 # Animation for the stone!
                 currentUnitActed()
 
             when 'Warp'
-              if m is 1 and (warpee = unitAt tileX, tileY)
+              if m <= 1 and (warpee = unitAt tileX, tileY)
                 state = 'warptarget'
 
         else if atom.input.pressed 'cancel'
           state = 'act'
+          shadowedTiles = null
           selectedAction = null
 
       when 'warptarget'
@@ -929,11 +1043,7 @@ atom.run
           if s?.owner is currentPlayer
             future.push new WarpOut warpee, selected
             forward()
-            removeActiveUnit warpee, currentDay
-            removeActiveUnit selected, currentDay
-
-            # Do we need to make the new unit active?
-            #active = warpee in unitsToMove[currentDay]
+            removeActiveUnit warpee
 
             if s.marker in future
               forward() while future[future.length - 1] != s.marker
@@ -949,15 +1059,8 @@ atom.run
             u = new Unit(s.x, s.y, warpee.type, warpee.owner)
             u.hp = warpee.hp
             future.push new WarpIn u, s.marker.unit
-            forward()
 
-            sel null
-            state = 'select'
-
-            for d in [currentDay...20].concat([0...currentDay])
-              if unitsToMove[d].length
-                goToEvening d
-                break
+            currentUnitActed()
 
         else if atom.input.pressed 'cancel'
           state = 'target'
@@ -998,7 +1101,7 @@ atom.run
     else
       reversingState = Math.max(reversingState - 0.03, 0)
 
-    if reversingState > 0
+    if reversingState > 0.01
       ctx.globalCompositeOperation = 'lighter'
       ctx.fillStyle = "rgba(68, 138, 216, #{reversingState})"
       ctx.fillRect 0,0, canvas.width, canvas.height
