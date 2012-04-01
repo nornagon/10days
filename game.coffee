@@ -921,7 +921,7 @@ atom.run
   update: (dt) ->
     if currentAnimation
       shadowedTiles = null
-      speed = if atom.input.down 'accelerate' then 5 else 1
+      speed = if atom.input.down 'accelerate' then 8 else 1
       # update anim
       completed = currentAnimation.step(dt * speed)
       if completed
