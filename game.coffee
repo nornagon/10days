@@ -31,6 +31,8 @@ bg =
     return y <= 3 if x is 0
     true
 
+sliderbar = image 'time_slider_full_bar.png'
+
 wiz =
   img: image 'Wizard Spritesheet.png'
   moody: image 'Wizard Spritesheetmoody.png'
@@ -920,6 +922,14 @@ atom.run
     if atom.input.pressed 'click'
       {tileX, tileY} = screenToMap atom.input.mouse.x, atom.input.mouse.y
       console.log 'tile', tileX, tileY
+      d = 300/9
+      if atom.input.mouse.y < 45+41 and 493-d/2 < atom.input.mouse.x < 493+300+d/2
+        console.log (atom.input.mouse.x - 493 + d/2)
+        day = Math.floor((atom.input.mouse.x - 493 + d/2) / d) + 1
+        day = Math.min(10,Math.max(1,day))
+        console.log day
+        goToEvening day
+        return
       #tileX = Math.floor atom.input.mouse.x/80
       #tileY = Math.floor atom.input.mouse.y/80
     else
@@ -1087,6 +1097,9 @@ atom.run
 #    u.draw() for u in us
 
     ctx.drawImage bg.fore, 0, 0
+
+    time_passed_px = ((currentDay - 1) / 9) * sliderbar.width
+    ctx.drawImage sliderbar, 0, 0, time_passed_px, sliderbar.height, 493, 45, time_passed_px, sliderbar.height
 
     ctx.fillStyle = currentPlayer
     ctx.fillText currentPlayer, 100, 600
