@@ -159,46 +159,46 @@ knight =
   tileWidth: 100
   tileHeight: 100
 
-  redbotleft: {x:0, y:1, num:1}
   redbotright: {x:0, y:0, num:1}
-  redtopright: {x:8, y:1, num:1}
   redtopleft: {x:8, y:0, num:1}
+  redbotleft: {x:0, y:1, num:1}
+  redtopright: {x:8, y:1, num:1}
 
   bluebotleft: {x:0, y:7, num:1}
   bluebotright: {x:0, y:6, num:1}
-  bluetopright: {x:8, y:10, num:1}
-  bluetopleft: {x:8, y:11, num:1}
+  bluetopright: {x:0, y:10, num:1}
+  bluetopleft: {x:0, y:11, num:1}
 
-  redwalkbotleft: {x:0, y:1, num:8}
   redwalkbotright: {x:0, y:0, num:8}
-  redwalktopright: {x:8, y:1, num:8}
   redwalktopleft: {x:8, y:0, num:8}
+  redwalkbotleft: {x:0, y:1, num:8}
+  redwalktopright: {x:8, y:1, num:8}
 
   bluewalkbotleft: {x:0, y:7, num:8}
   bluewalkbotright: {x:0, y:6, num:8}
-  bluewalktopright: {x:8, y:10, num:8}
-  bluewalktopleft: {x:8, y:11, num:8}
+  bluewalktopright: {x:8, y:7, num:8}
+  bluewalktopleft: {x:8, y:6, num:8}
 
   # Attack and idle animations
-  redattackbotleft: {x:0, y:4, num:13}
-  redattackbotright: {x:0, y:3, num:13}
-  redattacktopright: {x:0, y:6, num:13}
+  redattackbotright: {x:0, y:2, num:13}
+  redattackbotleft: {x:0, y:3, num:13}
+  redattacktopright: {x:0, y:4, num:13}
   redattacktopleft: {x:0, y:5, num:13}
 
-  blueattackbotleft: {x:0, y:10, num:13}
-  blueattackbotright: {x:0, y:9, num:13}
-  blueattacktopright: {x:5, y:11, num:13}
-  blueattacktopleft: {x:5, y:12, num:13}
+  blueattackbotright: {x:0, y:8, num:13}
+  blueattackbotleft: {x:0, y:9, num:13}
+  blueattacktopright: {x:0, y:10, num:13}
+  blueattacktopleft: {x:0, y:11, num:13}
 
-  reddeathbotright: {x:15, y:3, num:4}
-  reddeathbotleft:  {x:15, y:5, num:4}
-  reddeathtopleft:  {x:15, y:4, num:4}
-  reddeathtopright: {x:15, y:6, num:4}
+  reddeathbotright: {x:14, y:2, num:4}
+  reddeathtopleft:  {x:14, y:3, num:4}
+  reddeathbotleft:  {x:14, y:4, num:4}
+  reddeathtopright: {x:14, y:5, num:4}
 
-  bluedeathbotright: {x:15, y:9, num:4}
-  bluedeathbotleft:  {x:15, y:10, num:4}
-  bluedeathtopleft:  {x:15, y:11, num:4}
-  bluedeathtopright: {x:15, y:12, num:4}
+  bluedeathbotright: {x:14, y:8, num:4}
+  bluedeathbotleft:  {x:14, y:9, num:4}
+  bluedeathtopleft:  {x:14, y:10, num:4}
+  bluedeathtopright: {x:14, y:11, num:4}
 
   anchor: {x: 50, y: 91}
 
@@ -261,7 +261,7 @@ ctx = atom.ctx
 unitTypes =
   wizard: {hp:2, abilities:['Warp', 'Glyph'], speed:2, sprites:wiz}
   dragon: {hp:3, abilities:['Attack'], speed:3, sprites:dragon}
-  knight: {hp:2, abilities:['Attack'], speed:2, sprites:knight}
+  knight: {hp:2, abilities:['Attack'], speed:5, sprites:knight}
 
 class Unit
   constructor: (@x, @y, @type, @owner = 'red') ->
@@ -301,20 +301,20 @@ class Stone
   z: 1
 
 units = [
-  new Unit 1, 2, 'wizard', 'red'
-  new Unit 1, 3, 'wizard', 'red'
-  new Unit 1, 4, 'dragon', 'red'
+  #new Unit 1, 2, 'wizard', 'red'
+  #new Unit 1, 3, 'wizard', 'red'
+  #new Unit 1, 4, 'dragon', 'red'
 #  new Unit 1, 5, 'dragon', 'red'
 
-  new Unit 1, 6, 'knight', 'red'
+  new Unit 5, 6, 'knight', 'red'
 #  new Unit 1, 7, 'knight', 'red'
 
-  new Unit 10, 1, 'wizard', 'blue'
-  new Unit 10, 2, 'wizard', 'blue'
-  new Unit 10, 3, 'dragon', 'blue'
+  #new Unit 10, 1, 'wizard', 'blue'
+  #new Unit 10, 2, 'wizard', 'blue'
+  #new Unit 10, 3, 'dragon', 'blue'
 #  new Unit 10, 4, 'dragon', 'blue'
 
-#  new Unit 10, 5, 'knight', 'blue'
+  new Unit 4, 5, 'knight', 'blue'
 #  new Unit 10, 6, 'knight', 'blue'
 ]
 
@@ -394,6 +394,10 @@ facingDirection = (dx, dy) ->
     'topleft'
   else #if dy is 1
     'botright'
+
+# Bump the unit to an empty space. Return a function which reverts the bump
+bump = (unit) ->
+
 
 class Animation
   constructor: (@duration, @direction) ->
@@ -494,19 +498,26 @@ class AttackAnim extends Animation
   constructor: (@attacker, @victim, @died, direction, @callback) ->
     duration = if @died then 2 else 1
     super duration, direction
-    @frames =      [0,1,2,3,2,3,2,1,0,0,0,0]
+    #@frames =      [0,1,2,3,2,3,2,1,0,0,0,0]
     deathframes =  [0,0,0,0,0,0,0,1,2,3,3,3]
-
-    @step(0)
 
     dx = @victim.x - @attacker.x
     dy = @victim.y - @attacker.y
     facing = facingDirection dx, dy
 
+    a = "#{@attacker.owner}attack#{facing}"
+    idle = "#{@attacker.owner}#{facing}"
+    @numAttackFrames = @attacker.type.sprites[a].num
+
+    @step(0)
+
     anim = this
     @attacker.animation = ->
       console.log @owner, facing
-      drawAtIsoXY @type.sprites, @x, @y, "#{@owner}attack#{facing}", anim.frames[anim.frame], @ not in unitsToMove[currentDay]
+      if anim.frame < anim.numAttackFrames
+        drawAtIsoXY @type.sprites, @x, @y, a, anim.frame, @ not in unitsToMove[currentDay]
+      else
+        drawAtIsoXY @type.sprites, @x, @y, idle, 0, @ not in unitsToMove[currentDay]
 
     facing = facingDirection dx, dy
     if @died
@@ -517,8 +528,7 @@ class AttackAnim extends Animation
   step: (dt) ->
     super dt
 
-    @frame = Math.floor(@t * @frames.length / @duration)
-    @frame = Math.min @frame, @frames.length - 1
+    @frame = Math.floor(@t * (@numAttackFrames + 5) / @duration)
     
     return @isDone()
 
