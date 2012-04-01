@@ -42,6 +42,7 @@ player_text = {red: image('player1_text.png'), blue: image('player2_text.png')}
 hp_text = image 'HP.png'
 hp_num = [image('1.png'), image('1.png'), image('2.png'), image('3.png')]
 indicator = image 'indicator.png'
+cloud = image 'cloud.png'
 
 wiz =
   img: image 'Wizard Spritesheet.png'
@@ -296,6 +297,8 @@ past = null
 future = null
 pendingActions = []
 endDays = []
+
+cloudX = 0
 
 reset = ->
   reversing = false
@@ -1212,6 +1215,14 @@ atom.run
       ctx.drawImage player_text[hoveredUnit.owner], 0, 30
       ctx.drawImage hp_text, 155, 60
       ctx.drawImage hp_num[hoveredUnit.hp], 240, 60
+
+
+    cloudSpeed = 1
+    cloudX += cloudSpeed * (if reversing then -1 else 1)
+    ctx.globalAlpha = 0.4
+    ctx.drawImage cloud, cloudX % canvas.width, canvas.height - cloud.height
+    ctx.drawImage cloud, (cloudX % canvas.width) - cloud.width, canvas.height - cloud.height
+    ctx.globalAlpha = 1
 
     if reversing
       reversingState = Math.min(reversingState + 0.015, 0.5)
