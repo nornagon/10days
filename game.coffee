@@ -261,7 +261,7 @@ ctx = atom.ctx
 unitTypes =
   wizard: {hp:2, abilities:['Warp', 'Glyph'], speed:2, sprites:wiz}
   dragon: {hp:3, abilities:['Attack'], speed:3, sprites:dragon}
-  knight: {hp:2, abilities:['Attack'], speed:5, sprites:knight}
+  knight: {hp:1, abilities:['Attack'], speed:5, sprites:knight}
 
 class Unit
   constructor: (@x, @y, @type, @owner = 'red') ->
@@ -301,20 +301,20 @@ class Stone
   z: 1
 
 units = [
-  #new Unit 1, 2, 'wizard', 'red'
+  new Unit 5, 5, 'wizard', 'red'
   #new Unit 1, 3, 'wizard', 'red'
   #new Unit 1, 4, 'dragon', 'red'
 #  new Unit 1, 5, 'dragon', 'red'
 
   new Unit 5, 6, 'knight', 'red'
-#  new Unit 1, 7, 'knight', 'red'
+  new Unit 5, 7, 'knight', 'red'
 
   #new Unit 10, 1, 'wizard', 'blue'
   #new Unit 10, 2, 'wizard', 'blue'
   #new Unit 10, 3, 'dragon', 'blue'
 #  new Unit 10, 4, 'dragon', 'blue'
 
-  new Unit 4, 5, 'knight', 'blue'
+  new Unit 3, 5, 'knight', 'blue'
 #  new Unit 10, 6, 'knight', 'blue'
 ]
 
@@ -415,7 +415,7 @@ class Animation
 
 
 class MoveAnim extends Animation
-  constructor: (@unit, @path, direction) ->
+  constructor: (@unit, @path, direction, @callback) ->
     super 0.5 * (@path.length - 1), direction
     anim = @
     @frameTime = 0.1 # Length in seconds of each animation frame
@@ -466,6 +466,8 @@ class MoveAnim extends Animation
     @unit.x = finalPos.x
     @unit.y = finalPos.y
 
+    @callback?()
+
 
 class MoveAction
   constructor: (@u, @path) ->
@@ -481,8 +483,22 @@ class MoveAction
     #@u.y = @y
     @u.tired = true
     @prevFacing = @u.facing
-    currentAnimation = new MoveAnim @u, @path, 'forward' if @path.length
+    if @path.length
+      currentAnimation = new MoveAnim @u, @path, 'forward', =>
+        @died = false
+        for u in units when u != @u and u.x is @u.x and u.y is @u.y
+          # Found a unit that we moved to. Kill ourselves. How embarassing.
+          @died = true
+          # TODO: Add a die animation.
+          removeUnit @u
+          removeActiveUnit @u
+          break
+
   unapply: ->
+    if @died
+      # Un-telefrag
+      units.push @u
+
     return unless @u in units
     #@u.x = @prevX
     #@u.y = @prevY
