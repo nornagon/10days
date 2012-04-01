@@ -41,7 +41,9 @@ unit_stats = image 'unit_stats.png'
 player_text = {red: image('player1_text.png'), blue: image('player2_text.png')}
 hp_text = image 'HP.png'
 hp_num = [image('1.png'), image('1.png'), image('2.png'), image('3.png')]
-indicator = image 'indicator.png'
+indicator =
+  red: image 'indicator.png'
+  blue: image 'indicator2.png'
 
 wiz =
   img: image 'Wizard Spritesheet.png'
@@ -380,6 +382,7 @@ class Stone
 
   draw: ->
     drawAtIsoXY glyphs, @x, @y, @owner, if @age == 0 then 0 else 1
+
     ###
     ctx.save()
     ctx.translate origin.x, origin.y
@@ -1006,13 +1009,13 @@ atom.run
 
     if atom.input.pressed 'click'
       {tileX, tileY} = screenToMap atom.input.mouse.x, atom.input.mouse.y
-      console.log 'tile', tileX, tileY
+      #console.log 'tile', tileX, tileY
       d = 300/9
-      if atom.input.mouse.y < 45+41 and 493-d/2 < atom.input.mouse.x < 493+300+d/2
-        console.log (atom.input.mouse.x - 493 + d/2)
+      if selected is null and atom.input.mouse.y < 45+41 and 493-d/2 < atom.input.mouse.x < 493+300+d/2
+        #console.log (atom.input.mouse.x - 493 + d/2)
         day = Math.floor((atom.input.mouse.x - 493 + d/2) / d) + 1
         day = Math.min(10,Math.max(1,day))
-        console.log day
+        #console.log day
         goToEvening day
         return
       #tileX = Math.floor atom.input.mouse.x/80
@@ -1199,11 +1202,11 @@ atom.run
     time_passed_px = ((currentDay - 1) / 9) * sliderbar.width
     ctx.drawImage sliderbar, 0, 0, time_passed_px, sliderbar.height, 493, 45, time_passed_px, sliderbar.height
     for d, i in unitsToMove when d.length > 0
-      ctx.drawImage indicator, 490 + (i-1) * sliderbar.width/9, 54
+      ctx.drawImage indicator[currentPlayer], 490 + (i-1) * sliderbar.width/9, 54
 
-    ctx.fillStyle = currentPlayer
-    ctx.fillText currentPlayer, 100, 600
-    ctx.fillText currentDay, 140, 600
+#    ctx.fillStyle = currentPlayer
+#    ctx.fillText currentPlayer, 100, 600
+#    ctx.fillText currentDay, 140, 600
 
     if state is 'act' and pendingActions.length is 0 and !currentAnimation
       for a in selected.type.abilities.concat(['Wait'])
