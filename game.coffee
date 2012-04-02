@@ -7,6 +7,8 @@ atom.input.bind atom.key.T, 'wait'
 atom.input.bind atom.key.ESC, 'cancel'
 atom.input.bind atom.key.LSHIFT, 'accelerate'
 
+atom.input.bind atom.key.E, 'end turn'
+
 atom.input.bind atom.key.B, 'back'
 atom.input.bind atom.key.F, 'fwd'
 
@@ -306,6 +308,7 @@ past = null
 future = null
 pendingActions = []
 endDays = []
+unitsToMove = []
 
 cloudX = 0
 
@@ -333,6 +336,7 @@ reset = ->
     new Unit 9, 2, 'knight', 'blue'
     new Unit 9, 7, 'knight', 'blue'
   ]
+  unitsToMove = []
 
   warpstones = []
 
@@ -721,7 +725,7 @@ class WarpIn
   apply: ->
     throw new Error 'Overlapping units in warpin' if unitAt @warpee.x, @warpee.y
     units.push @warpee
-    @warpee.tired = true
+    #@warpee.tired = true
     currentAnimation = new PlaceStoneWarpAnimation @summoner, @warpee.x, @warpee.y, 'forward', @warpee
 
   unapply: ->
@@ -907,8 +911,6 @@ goToEvening = (dayNum) ->
     back() while future[future.length-1] isnt endDays[dayNum]
   return
 
-unitsToMove = {}
-
 turnStart = ->
   unitsToMove = getActiveUnits currentPlayer
 
@@ -1079,6 +1081,31 @@ atom.run
     else
       tileX = tileY = null
 
+    # End turn. Mostly useful for debugging.
+    if state in ['select', 'move'] and atom.input.pressed 'end turn'
+      if state is 'move'
+        # Cancel out of the move before letting the user wiggy through time
+        sel null
+        shadowedTiles = null
+        state = 'select'
+
+      oldDay = currentDay
+
+      for us, d in unitsToMove
+        if us.length > 0
+          goToEvening d
+          skipAnimations()
+          for u in us
+            future.push new MoveAction u, []
+            forward()
+            future.push new WaitAction u
+            forward()
+            skipAnimations()
+        us.length = 0
+
+      goToEvening oldDay
+      skipAnimations()
+
     switch state
       when 'select'
         if atom.input.pressed 'click'
@@ -1223,6 +1250,7 @@ atom.run
             # Make the warp clone of the unit
             u = new Unit(s.x, s.y, warpee.type, warpee.owner)
             u.hp = warpee.hp
+            u.tired = false
             future.push new WarpIn u, s.marker.unit
 
             currentUnitActed()
