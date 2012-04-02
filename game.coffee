@@ -220,14 +220,14 @@ knight =
   blueattacktopleft: {x:0, y:11, num:13}
 
   reddeathbotright: {x:14, y:2, num:4}
-  reddeathtopleft:  {x:14, y:3, num:4}
-  reddeathbotleft:  {x:14, y:4, num:4}
-  reddeathtopright: {x:14, y:5, num:4}
+  reddeathtopright:  {x:14, y:3, num:4}
+  reddeathbotleft: {x:14, y:4, num:4}
+  reddeathtopleft:  {x:14, y:5, num:4}
 
   bluedeathbotright: {x:14, y:8, num:4}
-  bluedeathbotleft:  {x:14, y:9, num:4}
-  bluedeathtopleft:  {x:14, y:10, num:4}
-  bluedeathtopright: {x:14, y:11, num:4}
+  bluedeathtopright:  {x:14, y:9, num:4}
+  bluedeathbotleft: {x:14, y:10, num:4}
+  bluedeathtopleft:  {x:14, y:11, num:4}
 
   anchor: {x: 50, y: 91}
 
@@ -615,7 +615,7 @@ class AttackAnim extends Animation
     duration = if @died then 2 else 1
     super duration, direction
     #@frames =      [0,1,2,3,2,3,2,1,0,0,0,0]
-    deathframes =  [0,0,0,0,0,0,0,1,2,3,3,3]
+    deathFrames =  [0,0,0,1,2,3,3,3]
 
     dx = @victim.x - @attacker.x
     dy = @victim.y - @attacker.y
@@ -624,7 +624,9 @@ class AttackAnim extends Animation
 
     a = "#{@attacker.owner}attack#{aFacing}"
     idle = "#{@attacker.owner}#{aFacing}"
+    vidle = "#{@victim.owner}#{vFacing}"
     @numAttackFrames = @attacker.type.sprites[a].num
+    @totalFrames = @numAttackFrames + 5 # Extra frames where the attacker is idle
 
     @step(0)
 
@@ -638,7 +640,11 @@ class AttackAnim extends Animation
     aFacing = facingDirection dx, dy
     if @died
       @victim.animation = ->
-        drawAtIsoXY @type.sprites, @x, @y, "#{@owner}death#{vFacing}", deathframes[anim.frame], @ not in unitsToMove[currentDay]
+        f = anim.frame - anim.totalFrames + deathFrames.length
+        if f < 0
+          drawAtIsoXY @type.sprites, @x, @y, vidle, 0, @moody()
+        else
+          drawAtIsoXY @type.sprites, @x, @y, "#{@owner}death#{vFacing}", deathFrames[f], @moody()
 
   step: (dt) ->
     super dt
