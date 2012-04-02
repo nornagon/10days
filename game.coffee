@@ -456,7 +456,7 @@ drawAtIsoXY = (sprite, x, y, animName, frame = 0, moody = false) ->
   py = tileH/2*(-x+y)
   
   #if moody then ctx.globalCompositeOperation = 'darjer'
-  if moody then ctx.globalAlpha = 0.5
+  if moody then ctx.globalAlpha *= 0.5
   if animName
     a = sprite[animName]
 
@@ -469,7 +469,7 @@ drawAtIsoXY = (sprite, x, y, animName, frame = 0, moody = false) ->
   else
     ctx.drawImage sprite.img, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y
   
-  if moody then ctx.globalAlpha = 1
+  if moody then ctx.globalAlpha /= 0.5
   #if moody then ctx.globalCompositeOperation = 'source-over'
   ctx.restore()
 
