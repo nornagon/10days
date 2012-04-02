@@ -16,12 +16,21 @@ canvas = atom.canvas
 canvas.width = 1280
 canvas.height = 720
 
+ctx = atom.ctx
+
 
 origin = {x:32,y:425}
 tileW = 56*2
 tileH = 28*2
 
-image = (src) -> (i = new Image).src = src; i
+loadingImages = 0
+
+image = (src) ->
+  i = new Image
+  i.src = src
+  loadingImages++
+  i.onload = -> loadingImages--
+  i
 
 bg =
   back: image 'bg.png'
@@ -279,8 +288,6 @@ screenToMap = (mx, my) ->
   l = mag(xUnit)
   {tileX:Math.floor(x/l), tileY:Math.floor(y/l)}
 
-ctx = atom.ctx
-
 
 unitTypes =
   wizard: {hp:2, abilities:['Warp', 'Glyph'], speed:2, sprites:wiz}
@@ -379,8 +386,6 @@ reset = ->
   endDays.reverse()
 
   suspendAnimation -> turnStart()
-
-
 
 class Unit
   constructor: (@x, @y, @type, @owner = 'red') ->
@@ -1027,12 +1032,12 @@ hoveredUnit = null
 sparkFrame = 10
 sparkX = 0
 
-splashFrames = 10
+splashFrames = 5
 
 atom.run
   update: (dt) ->
     if state is 'splash'
-      if splashFrames
+      if splashFrames or loadingImages > 0
         splashFrames--
         return
       else
@@ -1378,4 +1383,7 @@ atom.run
       ctx.fillRect 0,0, canvas.width, canvas.height
       ctx.globalCompositeOperation = 'source-over'
 
+    # Don't let chrome flush the spritesheet out of video ram just because we can't see any wizards,
+    # knights or dragons.
+    ctx.drawImage s.img, 0, 0, 1, 1, 0, 0, 1, 1 for s in [wiz, dragon, knight]
 
