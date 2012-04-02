@@ -1034,9 +1034,9 @@ atom.run
     if state is 'splash'
       if splashFrames
         splashFrames--
+        return
       else
         reset()
-      return()
 
     if state is 'gameover'
       reset() if atom.input.pressed 'click'
