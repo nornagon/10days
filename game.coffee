@@ -1291,7 +1291,7 @@ atom.run
                 currentUnitActed()
 
             when 'Glyph'
-              if m is 1 and !stoneAt(tileX, tileY)
+              if m is 1 and !stoneAt(tileX, tileY) and !unitAt(tileX, tileY)
                 future.push new PlaceStone selected, tileX, tileY
                 # Animation for the stone!
                 currentUnitActed()
