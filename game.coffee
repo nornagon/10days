@@ -851,7 +851,8 @@ class EndDay
       u.tired = true
 
     units = units.concat @activeUnits
-    currentAnimation = new FadeUnitsAnimation @activeUnits, 'backward'
+    if @activeUnits.length
+      currentAnimation = new FadeUnitsAnimation @activeUnits, 'backward'
 
     w.age-- for w in warpstones
 
@@ -1034,8 +1035,7 @@ atom.run
       return
 
     {tileX, tileY} = screenToMap atom.input.mouse.x, atom.input.mouse.y
-    u = unitAt tileX, tileY
-    hoveredUnit = u
+    hoveredUnit = unitAt tileX, tileY
 
     if currentAnimation
       shadowedTiles = null
@@ -1071,9 +1071,8 @@ atom.run
         return
 
 
-    # Timeline.
     if atom.input.pressed 'click'
-      {tileX, tileY} = screenToMap atom.input.mouse.x, atom.input.mouse.y
+      # Timeline.
       d = 300/9
       if state in ['select', 'move'] and atom.input.mouse.y < 45+41 and 493-d/2 < atom.input.mouse.x < 493+300+d/2
         if state is 'move'
@@ -1088,8 +1087,27 @@ atom.run
         goToEvening day
         skipAnimations()
         return
+      
+      # Forward & rewind buttons
+      d2 = (x, y) -> x * x + y * y
+      goBack = d2(atom.input.mouse.x - 453, atom.input.mouse.y - 66) < 14*14
+      goForward = d2(atom.input.mouse.x - 834, atom.input.mouse.y - 66) < 14*14
+      if state in ['select', 'move'] and (goBack or goForward)
+        if state is 'move'
+          # Cancel out of the move before letting the user wiggy through time
+          sel null
+          shadowedTiles = null
+          state = 'select'
+
+        if goBack
+          goToEvening Math.max(currentDay - 1, 0)
+        else if goForward
+          goToEvening Math.min(currentDay + 1, 10)
+        
+        return
     else
       tileX = tileY = null
+
 
     # End turn. Mostly useful for debugging.
     if state in ['select', 'move'] and atom.input.pressed 'end turn'
