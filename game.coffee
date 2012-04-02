@@ -240,6 +240,10 @@ glyphs =
   tileWidth: 99
   tileHeight: 53
 
+healthIcon =
+  img: image 'HealthIcon.png'
+  anchor: {x:20, y:0}
+
 selector =
   img: image 'Selector.png'
   anchor: {x:45, y:50}
@@ -391,12 +395,19 @@ class Unit
     @alpha = 1
     @facing = if @owner is 'red' then 'botright' else 'botleft'
 
+  moody: -> @ not in unitsToMove[currentDay]
+
   draw: ->
     return @animation.call(@) if @animation
     if @selected then drawAtIsoXY selector, @x, @y
     if @alpha != 1
       ctx.globalAlpha = @alpha
-    drawAtIsoXY @type.sprites, @x, @y, "#{@owner}#{@facing}", 0, @ not in unitsToMove[currentDay]
+
+    drawAtIsoXY @type.sprites, @x, @y, "#{@owner}#{@facing}", 0, @moody()
+    for i in [0...@hp]
+      {x, y, w, h} = isoToScreen healthIcon, @x, @y
+      ctx.drawImage healthIcon.img, x + (i * 12), y
+
     ctx.globalAlpha = 1
 
   z: 0
