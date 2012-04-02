@@ -282,7 +282,7 @@ ctx = atom.ctx
 unitTypes =
   wizard: {hp:2, abilities:['Warp', 'Glyph'], speed:2, sprites:wiz}
   dragon: {hp:3, abilities:['Attack'], speed:3, sprites:dragon}
-  knight: {hp:1, abilities:['Attack'], speed:4, sprites:knight}
+  knight: {hp:1, abilities:['Attack'], speed:3, sprites:knight}
 
 
 reversing = false
@@ -394,10 +394,16 @@ class Stone
     drawAtIsoXY glyphs, @x, @y, @owner, if @age == 0 then 0 else 1
 
     {x, y} = isoToScreen {anchor:{x:0,y:0}}, @x, @y
+    ctx.save()
     ctx.font = '16px Helvetica'
     ctx.textAlign = 'center'
     ctx.fillStyle = 'green'#@owner
+    ctx.shadowOffsetX = 1
+    ctx.shadowOffsetY = 1
+    ctx.shadowBlur = 5
+    ctx.shadowColor = 'black'
     ctx.fillText (currentDay - @age), x - 28, y + 5
+    ctx.restore()
 
     ###
     ctx.save()
@@ -445,6 +451,7 @@ drawAtIsoXY = (sprite, x, y, animName, frame = 0, moody = false) ->
   px = tileW/2*(x+y)
   py = tileH/2*(-x+y)
   
+  #if moody then ctx.globalCompositeOperation = 'darjer'
   if moody then ctx.globalAlpha = 0.5
   if animName
     a = sprite[animName]
@@ -459,6 +466,7 @@ drawAtIsoXY = (sprite, x, y, animName, frame = 0, moody = false) ->
     ctx.drawImage sprite.img, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y
   
   if moody then ctx.globalAlpha = 1
+  #if moody then ctx.globalCompositeOperation = 'source-over'
   ctx.restore()
 
 facingDirection = (dx, dy) ->
@@ -843,23 +851,20 @@ perform = ({action, direction}) ->
     action.unapply()
   action
 
-suspendAnimation = (f) ->
-  throw 'shouldnt be any current anim' if currentAnimation
-  f()
+skipAnimations = ->
+  currentAnimation?.end?()
+  currentAnimation = null
+
   for a in pendingActions
     perform a
     currentAnimation?.end?()
     currentAnimation = null
   pendingActions = []
 
-skipAnimations = ->
-  currentAnimation?.end?()
-  currentAnimation = null
-
-  while a = pendingActions.pop()
-    perform a
-    currentAnimation?.end?()
-    currentAnimation = null
+suspendAnimation = (f) ->
+  throw 'shouldnt be any current anim' if currentAnimation
+  f()
+  skipAnimations()
 
 back = ->
   action = past.pop()
@@ -1054,19 +1059,23 @@ atom.run
         return
 
 
+    # Timeline.
     if atom.input.pressed 'click'
       {tileX, tileY} = screenToMap atom.input.mouse.x, atom.input.mouse.y
-      #console.log 'tile', tileX, tileY
       d = 300/9
-      if selected is null and atom.input.mouse.y < 45+41 and 493-d/2 < atom.input.mouse.x < 493+300+d/2
-        #console.log (atom.input.mouse.x - 493 + d/2)
+      if state in ['select', 'move'] and atom.input.mouse.y < 45+41 and 493-d/2 < atom.input.mouse.x < 493+300+d/2
+        if state is 'move'
+          # Cancel out of the move before letting the user wiggy through time
+          sel null
+          shadowedTiles = null
+          state = 'select'
+
         day = Math.floor((atom.input.mouse.x - 493 + d/2) / d) + 1
         day = Math.min(10,Math.max(1,day))
         #console.log day
         goToEvening day
+        skipAnimations()
         return
-      #tileX = Math.floor atom.input.mouse.x/80
-      #tileY = Math.floor atom.input.mouse.y/80
     else
       tileX = tileY = null
 
@@ -1087,7 +1096,7 @@ atom.run
 
       when 'move'
         if atom.input.pressed 'click'
-          # TODO: BFS
+          # Select a different unit instead.
           if (u = unitAt tileX, tileY) and u isnt selected and u.owner is currentPlayer
             sel u
             shadowedTiles = bfs bg, u, u.type.speed
@@ -1116,7 +1125,7 @@ atom.run
           for a in selected.type.abilities.concat(['Wait'])
             if actionSprites[a]
               {x, y, w, h} = isoToScreen actionSprites[a], selected.x, selected.y
-              console.log x, y, w, h, atom.input.mouse.x, atom.input.mouse.y
+              #console.log x, y, w, h, atom.input.mouse.x, atom.input.mouse.y
               if x <= atom.input.mouse.x <= x+w and y <= atom.input.mouse.y <= y+h
                 action = a
                 break
@@ -1176,7 +1185,14 @@ atom.run
 
             when 'Warp'
               if m <= 1 and (warpee = unitAt tileX, tileY)
+                # Next the user needs to select a target for their warp.
                 state = 'warptarget'
+
+                # Set shadowed tiles to be warp targets.
+                shadowedTiles = {}
+                for s in warpstones when s.owner is currentPlayer
+                  shadowedTiles[[s.x, s.y]] = [s]
+                
 
         else if atom.input.pressed 'cancel'
           state = 'act'
@@ -1212,8 +1228,9 @@ atom.run
             currentUnitActed()
 
         else if atom.input.pressed 'cancel'
-          state = 'target'
+          state = 'act'
           warpee = null
+          shadowedTiles = null
 
         # cancel: go back to act
 
@@ -1257,6 +1274,11 @@ atom.run
 
     if state is 'act' and pendingActions.length is 0 and !currentAnimation
       for a in selected.type.abilities.concat(['Wait'])
+        if a is 'Warp'
+          hasStones = false
+          hasStones = true for s in warpstones when s.owner is currentPlayer
+          continue unless hasStones
+
         if actionSprites[a] then drawAtIsoXY actionSprites[a], selected.x, selected.y
 
     if hoveredUnit
