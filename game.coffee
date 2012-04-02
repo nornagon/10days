@@ -18,18 +18,19 @@ canvas.height = 720
 
 ctx = atom.ctx
 
-
 origin = {x:32,y:425}
 tileW = 56*2
 tileH = 28*2
 
-loadingImages = 0
+imagesToLoad = 0
 
 image = (src) ->
   i = new Image
   i.src = src
-  loadingImages++
-  i.onload = -> loadingImages--
+  imagesToLoad++
+  # The first time we draw an image takes time, presumably because thats when
+  # its copied into video ram or something. Do that immediately.
+  i.onload = i.onerror = -> imagesToLoad--
   i
 
 bg =
@@ -240,6 +241,10 @@ glyphs =
   tileWidth: 99
   tileHeight: 53
 
+healthIcon =
+  img: image 'HealthIcon.png'
+  anchor: {x:20, y:0}
+
 selector =
   img: image 'Selector.png'
   anchor: {x:45, y:50}
@@ -248,12 +253,7 @@ movementShadow =
   img: image 'Movementshadow.png'
   anchor: {x:83, y:59}
 
-gameoverscreen =
-  red: image 'redteamwinscreen.png'
-  blue: image 'blueteamwinscreen.png'
-  draw: image 'drawscreen.png'
-
-splashscreen = image 'titlescreen.png'
+titlescreen = image 'titlescreen_empty.png'
 
 actionSprites =
   Glyph:
@@ -341,15 +341,12 @@ reset = ->
     new Unit 0, 1, 'wizard', 'red'
     new Unit 1, 8, 'wizard', 'red'
     new Unit 1, 5, 'dragon', 'red'
-
     new Unit 1, 2, 'knight', 'red'
     new Unit 2, 8, 'knight', 'red'
-
 
     new Unit 10, 1, 'wizard', 'blue'
     new Unit 11, 8, 'wizard', 'blue'
     new Unit 10, 4, 'dragon', 'blue'
-
     new Unit 9, 1, 'knight', 'blue'
     new Unit 10, 7, 'knight', 'blue'
   ]
@@ -395,12 +392,19 @@ class Unit
     @alpha = 1
     @facing = if @owner is 'red' then 'botright' else 'botleft'
 
+  moody: -> @ not in unitsToMove[currentDay]
+
   draw: ->
     return @animation.call(@) if @animation
     if @selected then drawAtIsoXY selector, @x, @y
     if @alpha != 1
       ctx.globalAlpha = @alpha
-    drawAtIsoXY @type.sprites, @x, @y, "#{@owner}#{@facing}", 0, @ not in unitsToMove[currentDay]
+
+    drawAtIsoXY @type.sprites, @x, @y, "#{@owner}#{@facing}", 0, @moody()
+    for i in [0...@hp]
+      {x, y, w, h} = isoToScreen healthIcon, @x, @y
+      ctx.drawImage healthIcon.img, x + (i * 12), y
+
     ctx.globalAlpha = 1
 
   z: 0
@@ -465,10 +469,7 @@ isoToScreen = (sprite, x, y) ->
 
 # sprite is {img, anchor}
 drawAtIsoXY = (sprite, x, y, animName, frame = 0, moody = false) ->
-  ctx.save()
-  ctx.translate origin.x, origin.y
-  px = tileW/2*(x+y)
-  py = tileH/2*(-x+y)
+  {x:px, y:py, tw:tw, th:th} = isoToScreen sprite, x, y
   
   #if moody then ctx.globalCompositeOperation = 'darjer'
   oldAlpha = ctx.globalAlpha
@@ -481,13 +482,11 @@ drawAtIsoXY = (sprite, x, y, animName, frame = 0, moody = false) ->
     tx = tw * (a.x + frame)
     ty = th * a.y
 
-    ctx.drawImage sprite.img, tx, ty, tw, th, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y, tw, th
+    ctx.drawImage sprite.img, tx, ty, tw, th, px, py, tw, th
   else
-    ctx.drawImage sprite.img, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y
+    ctx.drawImage sprite.img, px, py
   
   if moody then ctx.globalAlpha = oldAlpha
-  #if moody then ctx.globalCompositeOperation = 'source-over'
-  ctx.restore()
 
 facingDirection = (dx, dy) ->
   if dx is -1
@@ -929,7 +928,7 @@ goToEvening = (dayNum) ->
 turnStart = ->
   unitsToMove = getActiveUnits currentPlayer
 
-  finalDay = endDays[10].activeUnits
+  finalDay = endDays[11].activeUnits
   if finalDay.length > 0 and currentPlayer is 'red'
     # Whoever has units here wins.
     redUnits = (u for u in finalDay when u.owner is 'red')
@@ -946,7 +945,7 @@ turnStart = ->
     if d.length
       return goToEvening i
 
-  # Game over!!!!!!
+  # Game over - somebody doesn't have any more units
   state = 'gameover'
   winner = if currentPlayer is 'red' then 'blue' else 'red'
 
@@ -1032,22 +1031,21 @@ hoveredUnit = null
 sparkFrame = 10
 sparkX = 0
 
-splashFrames = 5
+splashFrames = 40
 
 atom.run
   update: (dt) ->
-    if state is 'splash'
-      if splashFrames or loadingImages > 0
+    if state is 'splash' or imagesToLoad > 0
+      if splashFrames
         splashFrames--
         return
-      else
-        reset()
 
-    if state is 'gameover'
+    if state in ['gameover', 'splash']
       reset() if atom.input.pressed 'click'
       return
 
     {tileX, tileY} = screenToMap atom.input.mouse.x, atom.input.mouse.y
+    #shadowedTiles = {'sd': [{x:tileX,y:tileY}]}
     hoveredUnit = unitAt tileX, tileY
 
     if currentAnimation
@@ -1304,11 +1302,41 @@ atom.run
         # cancel: go back to act
 
   draw: ->
-    if state is 'splash'
-      ctx.drawImage splashscreen, 0, 0
-      return
-    if state is 'gameover'
-      ctx.drawImage gameoverscreen[winner], 0, 0
+    # Don't let chrome flush the spritesheet out of video ram just because we can't see any wizards,
+    # knights or dragons.
+    if splashFrames < 2
+      ctx.drawImage s.img, 0, 0, 1, 1, 0, 0, 1, 1 for s in [wiz, dragon, knight]
+
+    if state in ['splash', 'gameover']
+      ctx.drawImage titlescreen, 0, 0
+
+      ctx.save()
+      ctx.textAlign = 'center'
+      ctx.fillStyle = 'rgb(106,41,2)'
+      ctx.font = '100px Verdana'
+      ctx.shadowColor = 'black'
+      ctx.shadowBlur = 10
+      ctx.shadowOffsetX = 4
+      ctx.shadowOffsetY = 4
+      if state is 'gameover'
+        switch winner
+          when 'red'
+            ctx.fillText 'Red team wins!', canvas.width / 2, 530
+          when 'blue'
+            ctx.fillStyle = '#2C569C'
+            ctx.fillText 'Blue team wins!', canvas.width / 2, 530
+          when 'draw'
+            ctx.fillText 'Draw!', canvas.width / 2, 530
+
+        ctx.font = '50px Verdana'
+        ctx.fillText 'Click to play again', canvas.width / 2, 620
+
+      else if imagesToLoad > 0 or splashFrames > 0
+        ctx.fillText 'LOADING...', canvas.width / 2, 580
+      else
+        ctx.fillText 'CLICK TO START', canvas.width / 2, 580
+      ctx.restore()
+
       return
 
     #ctx.fillStyle = 'black'
@@ -1326,9 +1354,6 @@ atom.run
     stuff = units.slice()
     stuff.sort (a,b) -> (a.y - b.y) or (b.x - a.x) or (a.z - b.z)
     s.draw() for s in stuff
- 
-#    us = (u for u in units).sort (a,b) -> (a.y - b.y) or (b.x - a.x)
-#    u.draw() for u in us
     
     bg.drawFg?()
 
@@ -1382,8 +1407,4 @@ atom.run
       ctx.fillStyle = "rgba(68, 138, 216, #{reversingState * 0.5})"
       ctx.fillRect 0,0, canvas.width, canvas.height
       ctx.globalCompositeOperation = 'source-over'
-
-    # Don't let chrome flush the spritesheet out of video ram just because we can't see any wizards,
-    # knights or dragons.
-    ctx.drawImage s.img, 0, 0, 1, 1, 0, 0, 1, 1 for s in [wiz, dragon, knight]
 
