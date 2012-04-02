@@ -619,10 +619,11 @@ class AttackAnim extends Animation
 
     dx = @victim.x - @attacker.x
     dy = @victim.y - @attacker.y
-    facing = facingDirection dx, dy
+    aFacing = facingDirection dx, dy
+    vFacing = facingDirection -dx, -dy
 
-    a = "#{@attacker.owner}attack#{facing}"
-    idle = "#{@attacker.owner}#{facing}"
+    a = "#{@attacker.owner}attack#{aFacing}"
+    idle = "#{@attacker.owner}#{aFacing}"
     @numAttackFrames = @attacker.type.sprites[a].num
 
     @step(0)
@@ -634,10 +635,10 @@ class AttackAnim extends Animation
       else
         drawAtIsoXY @type.sprites, @x, @y, idle, 0, @ not in unitsToMove[currentDay]
 
-    facing = facingDirection dx, dy
+    aFacing = facingDirection dx, dy
     if @died
       @victim.animation = ->
-        drawAtIsoXY @type.sprites, @x, @y, "#{@owner}deathbotleft", deathframes[anim.frame], @ not in unitsToMove[currentDay]
+        drawAtIsoXY @type.sprites, @x, @y, "#{@owner}death#{vFacing}", deathframes[anim.frame], @ not in unitsToMove[currentDay]
 
   step: (dt) ->
     super dt
