@@ -102,10 +102,11 @@ wiz =
 
   anchor: {x: 50, y: 91}
 
-for k, red of wiz
-  if k[...3] is 'red'
-    a = k[3...]
-    wiz["blue#{a}"] = {x:red.x, y:red.y + 6, num:red.num}
+do ->
+  for k, red of wiz
+    if k[...3] is 'red'
+      a = k[3...]
+      wiz["blue#{a}"] = {x:red.x, y:red.y + 6, num:red.num}
 
 dragon =
   img: image 'dragonshheeet.png'
@@ -398,12 +399,16 @@ class Unit
 class Stone
   constructor: (@x, @y, @owner) ->
     @age = 0
+    @alpha = 1
 
   draw: ->
+    ctx.save()
+
+    if @alpha isnt 1
+      ctx.globalAlpha = @alpha
     drawAtIsoXY glyphs, @x, @y, @owner, if @age == 0 then 0 else 1
 
     {x, y} = isoToScreen {anchor:{x:0,y:0}}, @x, @y
-    ctx.save()
     ctx.font = '16px Helvetica'
     ctx.textAlign = 'center'
     ctx.fillStyle = 'green'#@owner
@@ -696,7 +701,6 @@ class PlaceStoneWarpAnimation extends Animation
       frame = Math.floor(Math.min(anim.t / anim.duration * @type.sprites[a].num, @type.sprites[a].num))
       drawAtIsoXY @type.sprites, @x, @y, a, frame, @ not in unitsToMove[currentDay]
 
-
     @step(0)
 
   step: (dt) ->
@@ -712,14 +716,17 @@ class PlaceStoneWarpAnimation extends Animation
 
 class PlaceStone
   constructor: (@unit, @x, @y) ->
-    @stone = new Stone x, y, @unit.owner
-    @stone.marker = this
-
-    warpstones.push @stone
+    @first = true
 
   apply: ->
+    if @first
+      @stone = new Stone @x, @y, @unit.owner
+      @stone.marker = this
+      warpstones.push @stone
+
     return unless @unit in units
-    currentAnimation = new PlaceStoneWarpAnimation @unit, @x, @y, 'forward'
+    currentAnimation = new PlaceStoneWarpAnimation @unit, @x, @y, 'forward', (@stone if @first)
+    @firstAnim = false
     #warpstones.push @stone
 
   unapply: ->
