@@ -410,9 +410,11 @@ class Unit
     if @alpha != 1
       ctx.globalAlpha = @alpha
 
-    drawAtIsoXY @type.sprites, @x, @y, "#{@owner}#{@facing}", 0, @moody()
+    m = @moody()
+    drawAtIsoXY @type.sprites, @x, @y, "#{@owner}#{@facing}", 0, m
     for i in [0...@hp]
       {x, y, w, h} = isoToScreen healthIcon, @x, @y
+      if m then ctx.globalAlpha = @alpha / 2
       ctx.drawImage healthIcon.img, x + (i * 16), y
 
     ctx.globalAlpha = 1
@@ -483,7 +485,7 @@ drawAtIsoXY = (sprite, x, y, animName, frame = 0, moody = false) ->
   
   #if moody then ctx.globalCompositeOperation = 'darjer'
   oldAlpha = ctx.globalAlpha
-  if moody then ctx.globalAlpha = 0.5
+  if moody then ctx.globalAlpha = 0.5 * oldAlpha
   if animName
     a = sprite[animName]
 
@@ -775,7 +777,9 @@ class WarpOutAnimation extends Animation
 
     anim = this
     @warper.animation = ->
-      drawAtIsoXY @type.sprites, @x, @y, "#{anim.warper.owner}warp#{facing}", anim.frames[anim.frame], @ not in unitsToMove[currentDay]
+      ctx.globalAlpha = @alpha
+      drawAtIsoXY @type.sprites, @x, @y, "#{anim.warper.owner}warp#{facing}", anim.frames[anim.frame], @moody()
+      ctx.globalAlpha = 1
 
 
   step: (dt) ->
