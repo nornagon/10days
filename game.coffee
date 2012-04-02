@@ -29,7 +29,7 @@ image = (src) ->
   imagesToLoad++
   # The first time we draw an image takes time, presumably because thats when
   # its copied into video ram or something. Do that immediately.
-  i.onload = -> imagesToLoad--
+  i.onload = i.onerror = -> imagesToLoad--
   i
 
 bg =
