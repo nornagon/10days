@@ -624,7 +624,6 @@ class AttackAnim extends Animation
 
     anim = this
     @attacker.animation = ->
-      console.log @owner, facing
       if anim.frame < anim.numAttackFrames
         drawAtIsoXY @type.sprites, @x, @y, a, anim.frame, @ not in unitsToMove[currentDay]
       else
@@ -633,7 +632,6 @@ class AttackAnim extends Animation
     facing = facingDirection dx, dy
     if @died
       @victim.animation = ->
-        console.log @owner, facing
         drawAtIsoXY @type.sprites, @x, @y, "#{@owner}deathbotleft", deathframes[anim.frame], @ not in unitsToMove[currentDay]
 
   step: (dt) ->
@@ -1207,7 +1205,7 @@ atom.run
                 adj = [[sx+1,sy],[sx-1,sy],[sx,sy+1],[sx,sy-1]]
                 shadowedTiles[u] = [{x:u[0],y:u[1]}] for u in adj when bg.canEnter u[0],u[1]
               when 'Glyph'
-                console.log 'glyph'
+                #console.log 'glyph'
                 {x:sx, y:sy} = selected
                 adj = [[sx+1,sy],[sx-1,sy],[sx,sy+1],[sx,sy-1]]
                 for u in adj when bg.canEnter(u[0],u[1]) and !unitAt(u[0],u[1])? and !stoneAt(u[0], u[1])?
