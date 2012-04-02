@@ -755,12 +755,20 @@ class WarpIn
   constructor: (@warpee, @summoner) ->
 
   apply: ->
-    throw new Error 'Overlapping units in warpin' if unitAt @warpee.x, @warpee.y
     units.push @warpee
     #@warpee.tired = true
-    currentAnimation = new PlaceStoneWarpAnimation @summoner, @warpee.x, @warpee.y, 'forward', @warpee
+    @died = false
+    currentAnimation = new PlaceStoneWarpAnimation @summoner, @warpee.x, @warpee.y, 'forward', @warpee, =>
+      for u in units when u != @warpee and u.x is @warpee.x and u.y is @warpee.y
+        @died = true
+        removeUnit @warpee
+        break
 
   unapply: ->
+    if @died
+      # Un-telefrag
+      units.push @warpee
+
     currentAnimation = new PlaceStoneWarpAnimation @summoner, @warpee.x, @warpee.y, 'backward', @warpee, ->
       removeUnit @warpee
 
