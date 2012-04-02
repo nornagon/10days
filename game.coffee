@@ -36,6 +36,7 @@ bg =
     return x <= 1 if y is 0
     return x in [10, 11] if y is 9
     return y <= 3 if x is 0
+    return y >= 6 if x is 11
     true
 
 sliderbar = image 'time_slider_full_bar.png'
@@ -318,7 +319,16 @@ reset = ->
 
   currentAnimation = null
 
-  shadowedTiles = null
+  shadowedTiles = {}
+
+  # This code shadows all tiles that you can enter. Good for debugging canEnter functions!
+  
+  ###
+  for x in [0...20]
+    for y in [0...20]
+      if bg.canEnter x, y
+        shadowedTiles[[x,y]] = [{x,y}]
+  ###
 
   units = [
     new Unit 0, 1, 'wizard', 'red'
@@ -329,12 +339,12 @@ reset = ->
     new Unit 2, 8, 'knight', 'red'
 
 
-    new Unit 9, 1, 'wizard', 'blue'
-    new Unit 10, 8, 'wizard', 'blue'
-    new Unit 9, 5, 'dragon', 'blue'
+    new Unit 10, 1, 'wizard', 'blue'
+    new Unit 11, 8, 'wizard', 'blue'
+    new Unit 10, 4, 'dragon', 'blue'
 
-    new Unit 9, 2, 'knight', 'blue'
-    new Unit 9, 7, 'knight', 'blue'
+    new Unit 9, 1, 'knight', 'blue'
+    new Unit 10, 7, 'knight', 'blue'
   ]
   unitsToMove = []
 
