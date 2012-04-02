@@ -949,7 +949,7 @@ goToEvening = (dayNum) ->
 turnStart = ->
   unitsToMove = getActiveUnits currentPlayer
 
-  finalDay = endDays[11].activeUnits
+  finalDay = endDays[10].activeUnits
   if finalDay.length > 0 and currentPlayer is 'red'
     # Whoever has units here wins.
     redUnits = (u for u in finalDay when u.owner is 'red')
@@ -1136,8 +1136,8 @@ atom.run
           shadowedTiles = null
           state = 'select'
 
-        day = Math.floor((atom.input.mouse.x - 493 + d/2) / d) + 1
-        day = Math.min(10,Math.max(1,day))
+        day = Math.floor((atom.input.mouse.x - 493 + d/2) / d)
+        day = Math.min(9,Math.max(0,day))
         #console.log day
         goToEvening day
         skipAnimations()
@@ -1392,24 +1392,26 @@ atom.run
         end = v[v.length - 1]
         drawAtIsoXY movementShadow, end.x, end.y
 
+    # Warpstones
     warpstones.sort (a,b) -> (a.y - b.y) or (b.x - a.x) or (a.z - b.z)
     s.draw() for s in warpstones
 
+    # Units
     stuff = units.slice()
     stuff.sort (a,b) -> (a.y - b.y) or (b.x - a.x) or (a.z - b.z)
     s.draw() for s in stuff
     
     bg.drawFg?()
 
-    time_passed_px = ((currentDay - 1) / 9) * sliderbar.width
+    # Day bar
+    time_passed_px = (currentDay / 9) * sliderbar.width
     ctx.drawImage sliderbar, 0, 0, time_passed_px, sliderbar.height, 493, 45, time_passed_px, sliderbar.height
+
+    # Units on the day bar [day bar, day baaarrrr]
     for d, i in unitsToMove when d.length > 0
-      ctx.drawImage indicator[currentPlayer], 490 + (i-1) * sliderbar.width/9, 54
+      ctx.drawImage indicator[currentPlayer], 490 + i * sliderbar.width/9, 54
 
-#    ctx.fillStyle = currentPlayer
-#    ctx.fillText currentPlayer, 100, 600
-#    ctx.fillText currentDay, 140, 600
-
+    # Actions
     if pendingActions.length is 0 and !currentAnimation
       if state is 'act'
         for a in selected.type.abilities.concat(['Wait'])
@@ -1420,9 +1422,11 @@ atom.run
 
           if actionSprites[a] then drawAtIsoXY actionSprites[a], selected.x, selected.y
 
+      # X
       if state in ['act', 'target', 'warptarget'] and pendingActions.length is 0 and !currentAnimation
         drawAtIsoXY actionSprites.X, selected.x, selected.y
 
+    # HP in the top left
     if hoveredUnit
       ctx.drawImage unit_stats, 0, 0
       ctx.drawImage player_text[hoveredUnit.owner], 0, 30
