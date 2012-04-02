@@ -1317,7 +1317,7 @@ atom.run
 
     tile_x = Math.floor(sparkFrame) % 3
     tile_y = Math.floor sparkFrame / 3
-    sparkFrame += 0.25 * (if reversing then -1 else 1)
+    sparkFrame += 0.25 * (if reversing then -reversingState else 1)
     if sparkFrame > 150+Math.floor(Math.random()*100)
       sparkFrame = 0
       sparkX = if Math.random() < 0.5 then 1000 else 20
@@ -1325,20 +1325,20 @@ atom.run
       ctx.drawImage spark.img, tile_x * spark.tileWidth, tile_y * spark.tileHeight, spark.tileWidth, spark.tileHeight, sparkX, canvas.height - spark.tileHeight - 40, spark.tileWidth, spark.tileHeight
 
     cloudSpeed = 1
-    cloudX += cloudSpeed * (if reversing then -1 else 1)
+    cloudX += cloudSpeed * (if reversing then -reversingState else 1)
     ctx.globalAlpha = 0.4
     ctx.drawImage cloud, cloudX % canvas.width, canvas.height - cloud.height
     ctx.drawImage cloud, (cloudX % canvas.width) - cloud.width, canvas.height - cloud.height
     ctx.globalAlpha = 1
 
     if reversing
-      reversingState = Math.min(reversingState + 0.015, 0.5)
+      reversingState = Math.min(reversingState + 0.03, 1)
     else
-      reversingState = Math.max(reversingState - 0.03, 0)
+      reversingState = Math.max(reversingState - 0.06, 0)
 
     if reversingState > 0.01
       ctx.globalCompositeOperation = 'lighter'
-      ctx.fillStyle = "rgba(68, 138, 216, #{reversingState})"
+      ctx.fillStyle = "rgba(68, 138, 216, #{reversingState * 0.5})"
       ctx.fillRect 0,0, canvas.width, canvas.height
       ctx.globalCompositeOperation = 'source-over'
 
