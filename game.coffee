@@ -466,7 +466,8 @@ drawAtIsoXY = (sprite, x, y, animName, frame = 0, moody = false) ->
   py = tileH/2*(-x+y)
   
   #if moody then ctx.globalCompositeOperation = 'darjer'
-  if moody then ctx.globalAlpha *= 0.5
+  oldAlpha = ctx.globalAlpha
+  if moody then ctx.globalAlpha = 0.5
   if animName
     a = sprite[animName]
 
@@ -479,7 +480,7 @@ drawAtIsoXY = (sprite, x, y, animName, frame = 0, moody = false) ->
   else
     ctx.drawImage sprite.img, px+tileW/2-sprite.anchor.x, py-sprite.anchor.y
   
-  if moody then ctx.globalAlpha /= 0.5
+  if moody then ctx.globalAlpha = oldAlpha
   #if moody then ctx.globalCompositeOperation = 'source-over'
   ctx.restore()
 
@@ -1026,9 +1027,18 @@ hoveredUnit = null
 sparkFrame = 10
 sparkX = 0
 
+splashFrames = 10
+
 atom.run
   update: (dt) ->
-    if state in ['splash', 'gameover']
+    if state is 'splash'
+      if splashFrames
+        splashFrames--
+      else
+        reset()
+      return()
+
+    if state is 'gameover'
       reset() if atom.input.pressed 'click'
       return
 
