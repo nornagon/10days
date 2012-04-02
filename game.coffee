@@ -70,20 +70,15 @@ wiz =
   tileWidth: 100
   tileHeight: 100
 
-  redtopleft: {x:0, y:0, num:1}
+  redtopleft:  {x:0, y:0, num:1}
   redtopright: {x:8, y:0, num:1}
-  redbotright: {x:0, y:1, num:1}
-  redbotleft: {x:15, y:1, num:1}
+  redbotright: {x:0, y:3, num:1}
+  redbotleft:  {x:4, y:3, num:1}
 
-  bluetopleft: {x:0, y:6, num:1}
-  bluetopright: {x:8, y:6, num:1}
-  bluebotright: {x:0, y:7, num:1}
-  bluebotleft: {x:15, y:7, num:1}
-
-  redwalktopleft: {x: 0, y: 0, num: 8}
-  redwalktopright:{x: 8, y: 0, num: 8}
-  redwalkbotright:{x: 0, y: 1, num: 8}
-  redwalkbotleft: {x: 8, y: 1, num: 8}
+  redwalktopleft: {x: 0, y: 0, num: 7}
+  redwalktopright:{x: 7, y: 0, num: 8}
+  redwalkbotright:{x: 0, y: 1, num: 7}
+  redwalkbotleft: {x: 7, y: 1, num: 8}
 
   redwarptopleft: {x: 0, y:2, num:4}
   redwarptopright:{x: 5, y:2, num:4}
@@ -100,38 +95,17 @@ wiz =
   reddeathbotright:{x: 13,y:2, num:4}
   reddeathbotleft: {x: 9, y:2, num:4}
 
-  redstonebotleft: {x: 0, y:4, num:10}
-  redstonebotright:{x: 10, y:4, num:10}
-  redstonetopleft: {x: 0, y:5, num:10}
-  redstonetopright:{x: 10, y:5, num:10}
-
-  bluewalktopleft: {x: 0, y: 6, num: 8}
-  bluewalktopright:{x: 8, y: 6, num: 8}
-  bluewalkbotright:{x: 0, y: 7, num: 8}
-  bluewalkbotleft: {x: 8, y: 7, num: 8}
-
-  bluewarptopleft: {x: 0, y:8, num:4}
-  bluewarptopright:{x: 5, y:8, num:4}
-  bluewarpbotright:{x: 0, y:9, num:4}
-  bluewarpbotleft: {x: 5, y:9, num:4}
-
-  blueattacktopleft: {x: 0, y:8, num:4}
-  blueattacktopright:{x: 5, y:8, num:4}
-  blueattackbotright:{x: 0, y:9, num:4}
-  blueattackbotleft: {x: 5, y:9, num:4}
-
-  bluedeathtopleft: {x: 9, y:9, num:4}
-  bluedeathtopright:{x: 13,y:9, num:4}
-  bluedeathbotright:{x: 13,y:8, num:4}
-  bluedeathbotleft: {x: 9, y:8, num:4}
-
-  bluestonebotleft: {x: 0, y:10, num:10}
-  bluestonebotright:{x: 10, y:10, num:10}
-  bluestonetopleft: {x: 0, y:11, num:10}
-  bluestonetopright:{x: 10, y:11, num:10}
-
+  redstonebotleft: {x: 0, y:4, num:8}
+  redstonebotright:{x: 8, y:4, num:8}
+  redstonetopleft: {x: 0, y:5, num:8}
+  redstonetopright:{x: 8, y:5, num:8}
 
   anchor: {x: 50, y: 91}
+
+for k, red of wiz
+  if k[...3] is 'red'
+    a = k[3...]
+    wiz["blue#{a}"] = {x:red.x, y:red.y + 6, num:red.num}
 
 dragon =
   img: image 'dragonshheeet.png'
@@ -488,6 +462,7 @@ drawAtIsoXY = (sprite, x, y, animName, frame = 0, moody = false) ->
   if moody then ctx.globalAlpha = 0.5 * oldAlpha
   if animName
     a = sprite[animName]
+    console.warn "Using incorrect frame #{frame} of #{animName}" if frame >= a.num
 
     tw = sprite.tileWidth
     th = sprite.tileHeight
@@ -540,8 +515,9 @@ class MoveAnim extends Animation
       facing = facingDirection dx, dy
 
       pos = lerp from, to, (anim.section % 1)
-      frame = Math.floor(anim.t / anim.frameTime) % 8
-      drawAtIsoXY @type.sprites, pos.x, pos.y, "#{unit.owner}walk#{facing}", frame, @ not in unitsToMove[currentDay]
+      a = "#{unit.owner}walk#{facing}"
+      frame = Math.floor(anim.t / anim.frameTime) % @type.sprites[a].num
+      drawAtIsoXY @type.sprites, pos.x, pos.y, a, frame, @ not in unitsToMove[currentDay]
 
 
     @step(0)
