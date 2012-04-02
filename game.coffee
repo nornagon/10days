@@ -301,7 +301,7 @@ screenToMap = (mx, my) ->
 
 unitTypes =
   wizard: {hp:2, abilities:['Warp', 'Glyph'], speed:2, sprites:wiz}
-  dragon: {hp:3, abilities:['Attack'], speed:3, sprites:dragon}
+  dragon: {hp:2, abilities:['Attack'], speed:3, sprites:dragon}
   knight: {hp:1, abilities:['Attack'], speed:3, sprites:knight}
 
 
