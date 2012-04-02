@@ -255,6 +255,13 @@ movementShadow =
 
 titlescreen = image 'titlescreen_empty.png'
 
+soundimg =
+  mute: image 'Mute.png'
+  unmute: image 'Sound.png'
+
+muted = true
+musicElem = document.getElementById 'music'
+
 actionSprites =
   Glyph:
     img: image 'selector_glyph.png'
@@ -268,6 +275,9 @@ actionSprites =
   Attack:
     img: image 'selector_attack.png'
     anchor: {x:100, y:90}
+  X:
+    img: image 'X_Glow.png'
+    anchor: {x:-40, y:120}
 
 dot = (a, b) -> a.x * b.x + a.y * b.y
 mag = (a) -> Math.sqrt(a.x * a.x + a.y * a.y)
@@ -403,7 +413,7 @@ class Unit
     drawAtIsoXY @type.sprites, @x, @y, "#{@owner}#{@facing}", 0, @moody()
     for i in [0...@hp]
       {x, y, w, h} = isoToScreen healthIcon, @x, @y
-      ctx.drawImage healthIcon.img, x + (i * 12), y
+      ctx.drawImage healthIcon.img, x + (i * 16), y
 
     ctx.globalAlpha = 1
 
@@ -1033,6 +1043,15 @@ bfs = (map, origin, distance, cull) ->
 
 manhattan = (a,b) -> Math.abs(a.x-b.x) + Math.abs(a.y-b.y)
 
+drawMuteSwitch = ->
+  img = if muted then soundimg.mute else soundimg.unmute
+  ctx.drawImage img, canvas.width - img.width/2 - 40, canvas.height - img.height/2 - 36
+
+didCancel = ->
+  return atom.input.pressed 'cancel' unless atom.input.pressed 'click'
+  {x, y, w, h} = isoToScreen actionSprites.X, selected.x, selected.y
+  return x <= atom.input.mouse.x <= x+w and y <= atom.input.mouse.y <= y+h
+
 hoveredUnit = null
 
 sparkFrame = 10
@@ -1042,6 +1061,20 @@ splashFrames = 40
 
 atom.run
   update: (dt) ->
+    if atom.input.pressed 'click'
+      x = atom.input.mouse.x
+      y = atom.input.mouse.y
+      img = soundimg.mute
+      imgx = canvas.width - 40
+      imgy = canvas.height - 36
+      if imgx - img.width/2 < x < imgx + img.width/2 and imgy - img.height/2 < y < imgy + img.height/2
+        if muted
+          muted = false
+          musicElem.play()
+        else
+          muted = true
+          musicElem.pause()
+
     if state is 'splash' or imagesToLoad > 0
       if splashFrames
         splashFrames--
@@ -1168,7 +1201,13 @@ atom.run
             shadowedTiles = bfs bg, unit, unit.type.speed
 
       when 'move'
-        if atom.input.pressed 'click'
+        if didCancel()
+          # go back to select and unselect the unit
+          state = 'select'
+          shadowedTiles = null
+          sel null
+
+        else if atom.input.pressed 'click'
           # Select a different unit instead.
           if (u = unitAt tileX, tileY) and u isnt selected and u.owner is currentPlayer
             sel u
@@ -1186,14 +1225,16 @@ atom.run
               state = 'act'
               shadowedTiles = null
 
-        else if atom.input.pressed 'cancel'
-          # go back to select and unselect the unit
-          state = 'select'
-          shadowedTiles = null
-          sel null
-
       when 'act'
-        if atom.input.pressed 'click'
+        if didCancel()
+          # Unmove.
+          suspendAnimation ->
+            back()
+          future.pop()
+          state = 'move'
+          shadowedTiles = bfs bg, selected, selected.type.speed
+ 
+        else if atom.input.pressed 'click'
           action = null
           for a in selected.type.abilities.concat(['Wait'])
             if actionSprites[a]
@@ -1231,17 +1272,12 @@ atom.run
                 for u in adj when bg.canEnter(u[0],u[1]) and !unitAt(u[0],u[1])? and !stoneAt(u[0], u[1])?
                   shadowedTiles[u] = [{x:u[0],y:u[1]}]
 
-        else if atom.input.pressed 'cancel'
-          # Unmove.
-          suspendAnimation ->
-            back()
-          future.pop()
-          state = 'move'
-          shadowedTiles = bfs bg, selected, selected.type.speed
-        
-        # Wait: deselect unit and state -> select
-
       when 'target'
+        if didCancel()
+          state = 'act'
+          shadowedTiles = null
+          selectedAction = null
+
         if atom.input.pressed 'click'
           m = Math.abs(selected.x - tileX) + Math.abs(selected.y - tileY)
           switch selectedAction
@@ -1267,13 +1303,13 @@ atom.run
                   shadowedTiles[[s.x, s.y]] = [s]
                 
 
-        else if atom.input.pressed 'cancel'
-          state = 'act'
-          shadowedTiles = null
-          selectedAction = null
-
       when 'warptarget'
-        if atom.input.pressed 'click'
+        if didCancel()
+          state = 'act'
+          warpee = null
+          shadowedTiles = null
+
+        else if atom.input.pressed 'click'
           # s is the warpstone
           # warpee is the unit that got warped
           # selected is the unit that did the warping
@@ -1300,11 +1336,6 @@ atom.run
             future.push new WarpIn u, s.marker.unit
 
             currentUnitActed()
-
-        else if atom.input.pressed 'cancel'
-          state = 'act'
-          warpee = null
-          shadowedTiles = null
 
         # cancel: go back to act
 
@@ -1337,11 +1368,13 @@ atom.run
 
         ctx.font = '50px Verdana'
         ctx.fillText 'Click to play again', canvas.width / 2, 620
+        drawMuteSwitch()
 
       else if imagesToLoad > 0 or splashFrames > 0
         ctx.fillText 'LOADING...', canvas.width / 2, 580
       else
         ctx.fillText 'CLICK TO START', canvas.width / 2, 580
+        drawMuteSwitch()
       ctx.restore()
 
       return
@@ -1373,20 +1406,27 @@ atom.run
 #    ctx.fillText currentPlayer, 100, 600
 #    ctx.fillText currentDay, 140, 600
 
-    if state is 'act' and pendingActions.length is 0 and !currentAnimation
-      for a in selected.type.abilities.concat(['Wait'])
-        if a is 'Warp'
-          hasStones = false
-          hasStones = true for s in warpstones when s.owner is currentPlayer
-          continue unless hasStones
+    if pendingActions.length is 0 and !currentAnimation
+      if state is 'act'
+        for a in selected.type.abilities.concat(['Wait'])
+          if a is 'Warp'
+            hasStones = false
+            hasStones = true for s in warpstones when s.owner is currentPlayer
+            continue unless hasStones
 
-        if actionSprites[a] then drawAtIsoXY actionSprites[a], selected.x, selected.y
+          if actionSprites[a] then drawAtIsoXY actionSprites[a], selected.x, selected.y
+
+      if state in ['act', 'target', 'warptarget'] and pendingActions.length is 0 and !currentAnimation
+        drawAtIsoXY actionSprites.X, selected.x, selected.y
 
     if hoveredUnit
       ctx.drawImage unit_stats, 0, 0
       ctx.drawImage player_text[hoveredUnit.owner], 0, 30
       ctx.drawImage hp_text, 155, 60
       ctx.drawImage hp_num[hoveredUnit.hp], 240, 60
+
+    drawMuteSwitch()
+
 
     tile_x = Math.floor(sparkFrame) % 3
     tile_y = Math.floor sparkFrame / 3
