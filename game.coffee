@@ -65,25 +65,31 @@ spark =
   tileWidth: 150
   tileHeight: 75
 
+copyRedToBlue = (sheet, offset) ->
+  for k, red of sheet
+    if k[...3] is 'red'
+      a = k[3...]
+      sheet["blue#{a}"] = {x:red.x, y:red.y + offset, num:red.num}
+
 wiz =
   img: image 'Wizard Spritesheet.png'
   tileWidth: 100
   tileHeight: 100
 
   redtopleft:  {x:0, y:0, num:1}
-  redtopright: {x:8, y:0, num:1}
-  redbotright: {x:0, y:3, num:1}
-  redbotleft:  {x:4, y:3, num:1}
+  redtopright: {x:15, y:0, num:1}
+  redbotright: {x:0, y:1, num:1}
+  redbotleft:  {x:15, y:1, num:1}
 
-  redwalktopleft: {x: 0, y: 0, num: 7}
-  redwalktopright:{x: 7, y: 0, num: 8}
-  redwalkbotright:{x: 0, y: 1, num: 7}
-  redwalkbotleft: {x: 7, y: 1, num: 8}
+  redwalktopleft: {x: 0, y: 0, num: 8}
+  redwalktopright:{x: 8, y: 0, num: 8}
+  redwalkbotright:{x: 0, y: 1, num: 8}
+  redwalkbotleft: {x: 8, y: 1, num: 8}
 
   redwarptopleft: {x: 0, y:2, num:4}
-  redwarptopright:{x: 5, y:2, num:4}
+  redwarptopright:{x: 4, y:2, num:4}
   redwarpbotright:{x: 0, y:3, num:4}
-  redwarpbotleft: {x: 5, y:3, num:4}
+  redwarpbotleft: {x: 4, y:3, num:4}
 
   redattacktopleft: {x: 0, y:2, num:4}
   redattacktopright:{x: 5, y:2, num:4}
@@ -102,11 +108,7 @@ wiz =
 
   anchor: {x: 50, y: 91}
 
-do ->
-  for k, red of wiz
-    if k[...3] is 'red'
-      a = k[3...]
-      wiz["blue#{a}"] = {x:red.x, y:red.y + 6, num:red.num}
+copyRedToBlue wiz, 6
 
 dragon =
   img: image 'dragonshheeet.png'
@@ -168,20 +170,10 @@ knight =
   redbotleft: {x:0, y:1, num:1}
   redtopright: {x:8, y:1, num:1}
 
-  bluebotleft: {x:0, y:7, num:1}
-  bluebotright: {x:0, y:6, num:1}
-  bluetopright: {x:0, y:10, num:1}
-  bluetopleft: {x:0, y:11, num:1}
-
   redwalkbotright: {x:0, y:0, num:8}
   redwalktopleft: {x:8, y:0, num:8}
   redwalkbotleft: {x:0, y:1, num:8}
   redwalktopright: {x:8, y:1, num:8}
-
-  bluewalkbotleft: {x:0, y:7, num:8}
-  bluewalkbotright: {x:0, y:6, num:8}
-  bluewalktopright: {x:8, y:7, num:8}
-  bluewalktopleft: {x:8, y:6, num:8}
 
   # Attack and idle animations
   redattackbotright: {x:0, y:2, num:13}
@@ -189,22 +181,14 @@ knight =
   redattacktopright: {x:0, y:4, num:13}
   redattacktopleft: {x:0, y:5, num:13}
 
-  blueattackbotright: {x:0, y:8, num:13}
-  blueattackbotleft: {x:0, y:9, num:13}
-  blueattacktopright: {x:0, y:10, num:13}
-  blueattacktopleft: {x:0, y:11, num:13}
-
   reddeathbotright: {x:14, y:2, num:4}
   reddeathtopright:  {x:14, y:3, num:4}
   reddeathbotleft: {x:14, y:4, num:4}
   reddeathtopleft:  {x:14, y:5, num:4}
 
-  bluedeathbotright: {x:14, y:8, num:4}
-  bluedeathtopright:  {x:14, y:9, num:4}
-  bluedeathbotleft: {x:14, y:10, num:4}
-  bluedeathtopleft:  {x:14, y:11, num:4}
-
   anchor: {x: 50, y: 91}
+
+copyRedToBlue knight, 6
 
 glyphs =
   img: image 'glyphs.png'
