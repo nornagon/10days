@@ -710,7 +710,7 @@ class PlaceStone
 
     return unless @unit in units
     currentAnimation = new PlaceStoneWarpAnimation @unit, @x, @y, 'forward', (@stone if @first)
-    @firstAnim = false
+    @first = false
     #warpstones.push @stone
 
   unapply: ->
