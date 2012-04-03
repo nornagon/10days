@@ -70,6 +70,7 @@ copyRedToBlue = (sheet, offset) ->
     if k[...3] is 'red'
       a = k[3...]
       sheet["blue#{a}"] = {x:red.x, y:red.y + offset, num:red.num}
+  return
 
 wiz =
   img: image 'Wizard Spritesheet.png'
@@ -360,6 +361,7 @@ class Unit
     @tired = true
     @alpha = 1
     @facing = if @owner is 'red' then 'botright' else 'botleft'
+    @facingStack = []
 
   moody: -> @ not in unitsToMove[currentDay]
 
@@ -377,6 +379,18 @@ class Unit
       ctx.drawImage healthIcon.img, x + (i * 16), y
 
     ctx.globalAlpha = 1
+
+  pushFacing: (newFacing) ->
+    @facingStack.push @facing
+    @facing = newFacing
+
+  pushFacingUnit: (other) ->
+    dx = other.x - @x
+    dy = other.y - @y
+    @pushFacing facingDirection dx, dy
+
+  popFacing: ->
+    @facing = @facingStack.pop()
 
   z: 0
 
@@ -451,6 +465,7 @@ drawAtIsoXY = (sprite, x, y, animName, frame = 0, moody = false) ->
   if moody then ctx.globalAlpha = 0.5 * oldAlpha
   if animName
     a = sprite[animName]
+    throw new Error "Missing animation: #{animName}" unless a
     console.warn "Using incorrect frame #{frame} of #{animName}" if frame >= a.num
 
     tw = sprite.tileWidth
@@ -532,13 +547,6 @@ class MoveAnim extends Animation
   end: ->
     @unit.animation = null
 
-    if @direction is 'forward' and @path.length >= 2
-      from = @path[@path.length - 2]
-      to = @path[@path.length - 1]
-      dx = to.x - from.x
-      dy = to.y - from.y
-      @unit.facing = facingDirection dx, dy
-
     finalPos = if @direction is 'forward' then @path[@path.length - 1] else @path[0]
     @unit.x = finalPos.x
     @unit.y = finalPos.y
@@ -559,8 +567,7 @@ class MoveAction
     #@u.x = @x
     #@u.y = @y
     @u.tired = true
-    @prevFacing = @u.facing
-    if @path.length
+    if @path.length > 1 # The path always includes the destination.
       currentAnimation = new MoveAnim @u, @path, 'forward', =>
         @died = false
         for u in units when u != @u and u.x is @u.x and u.y is @u.y
@@ -570,6 +577,12 @@ class MoveAction
           removeUnit @u
           removeActiveUnit @u
           break
+
+      from = @path[@path.length - 2]
+      to = @path[@path.length - 1]
+      dx = to.x - from.x
+      dy = to.y - from.y
+      @u.pushFacing facingDirection dx, dy
 
   unapply: ->
     if @died
@@ -581,7 +594,8 @@ class MoveAction
     #@u.y = @prevY
     @u.tired = false
     currentAnimation = new MoveAnim @u, @path, 'backward' if @path.length
-    @u.facing = @prevFacing
+
+    @u.popFacing() if @path.length > 1
 
 removeUnit = (unit) ->
   units = (u for u in units when u != unit)
@@ -598,6 +612,10 @@ class AttackAnim extends Animation
     dy = @victim.y - @attacker.y
     aFacing = facingDirection dx, dy
     vFacing = facingDirection -dx, -dy
+
+    if @direction is 'forward'
+      @attacker.pushFacing aFacing
+      @victim.pushFacing vFacing
 
     a = "#{@attacker.owner}attack#{aFacing}"
     idle = "#{@attacker.owner}#{aFacing}"
@@ -633,6 +651,11 @@ class AttackAnim extends Animation
   end: ->
     @attacker.animation = null
     @victim.animation = null
+
+    if @direction is 'backward'
+      @attacker.popFacing()
+      @victim.popFacing()
+
     @callback?()
 
 class AttackAction
@@ -676,13 +699,10 @@ class PlaceStoneWarpAnimation extends Animation
   constructor: (@unit, x, y, direction, @warpee, @callback) ->
     super 1, direction
 
-    dx = x - @unit.x
-    dy = y - @unit.y
-    facing = facingDirection dx, dy
-    a = "#{@unit.owner}stone#{facing}"
+    a = "#{@unit.owner}stone#{@unit.facing}"
     anim = this
     @unit.animation = ->
-      frame = Math.floor(Math.min(anim.t / anim.duration * @type.sprites[a].num, @type.sprites[a].num))
+      frame = Math.min(Math.floor(anim.t / anim.duration * @type.sprites[a].num), @type.sprites[a].num - 1)
       drawAtIsoXY @type.sprites, @x, @y, a, frame, @ not in unitsToMove[currentDay]
 
     @step(0)
@@ -700,23 +720,30 @@ class PlaceStoneWarpAnimation extends Animation
 
 class PlaceStone
   constructor: (@unit, @x, @y) ->
-    @first = true
+    @fadeStone = true
 
   apply: ->
-    if @first
+    if @fadeStone
       @stone = new Stone @x, @y, @unit.owner
       @stone.marker = this
       warpstones.push @stone
 
     return unless @unit in units
-    currentAnimation = new PlaceStoneWarpAnimation @unit, @x, @y, 'forward', (@stone if @first)
-    @first = false
+
+    @unit.pushFacingUnit this
+
+    currentAnimation = new PlaceStoneWarpAnimation @unit, @x, @y, 'forward', (@stone if @fadeStone)
+    @fadeStone = false
     #warpstones.push @stone
 
   unapply: ->
     return unless @unit in units
-    currentAnimation = new PlaceStoneWarpAnimation @unit, @x, @y, 'backward'
-    #warpstones = (w for w in warpstones when w != @stone)
+    currentAnimation = new PlaceStoneWarpAnimation @unit, @x, @y, 'backward', (@stone if @fadeStone), =>
+      @unit.popFacing()
+      if @fadeStone
+        # Remove the warpstone
+        warpstones = (w for w in warpstones when w != @stone)
+        @fadeStone = false
 
 class WarpIn
   constructor: (@warpee, @summoner) ->
@@ -725,6 +752,9 @@ class WarpIn
     units.push @warpee
     #@warpee.tired = true
     @died = false
+    if @warpee isnt @summoner
+      @summoner.pushFacingUnit @warpee
+
     currentAnimation = new PlaceStoneWarpAnimation @summoner, @warpee.x, @warpee.y, 'forward', @warpee, =>
       for u in units when u != @warpee and u.x is @warpee.x and u.y is @warpee.y
         @died = true
@@ -736,7 +766,9 @@ class WarpIn
       # Un-telefrag
       units.push @warpee
 
-    currentAnimation = new PlaceStoneWarpAnimation @summoner, @warpee.x, @warpee.y, 'backward', @warpee, ->
+    currentAnimation = new PlaceStoneWarpAnimation @summoner, @warpee.x, @warpee.y, 'backward', @warpee, =>
+      if @warpee isnt @summoner
+        @summoner.popFacing()
       removeUnit @warpee
 
 class WarpOutAnimation extends Animation
@@ -966,20 +998,23 @@ todoIdle = []
 nextIdle = (f) -> todoIdle.push f
 doIdle = -> f() while f = todoIdle.shift()
 
-currentUnitActed = ->
-  forward()
-  do (selected, currentDay) ->
-    nextIdle ->
-      removeActiveUnit selected, currentDay
-  sel null
-  shadowedTiles = null
-  state = 'select'
-
+goToNextActiveUnit = ->
   for d in [currentDay...20].concat([0...currentDay])
     if unitsToMove[d].length
       goToEvening d
       break
   return
+
+currentUnitActed = ->
+  forward()
+  do (selected, currentDay) ->
+    nextIdle ->
+      removeActiveUnit selected, currentDay
+      #goToNextActiveUnit()
+
+  sel null
+  shadowedTiles = null
+  state = 'select'
 
 
 bfs = (map, origin, distance, cull) ->
@@ -1156,6 +1191,7 @@ atom.run
           for u in us
             future.push new MoveAction u, []
             forward()
+            skipAnimations()
             future.push new WaitAction u
             forward()
             skipAnimations()
@@ -1298,15 +1334,13 @@ atom.run
             forward()
             removeActiveUnit warpee
 
+            s.marker.fadeStone = true
+
             if s.marker in future
               forward() while future[future.length - 1] != s.marker
-              future.pop()
             else
-              back() while past[past.length - 1] != s.marker
-              past.pop()
-
-            # Remove the marker from the marker list
-            warpstones = (w for w in warpstones when w != s)
+              back() while future[future.length - 1] != s.marker
+            future.pop()
 
             # Make the warp clone of the unit
             u = new Unit(s.x, s.y, warpee.type, warpee.owner)
@@ -1315,6 +1349,7 @@ atom.run
             future.push new WarpIn u, s.marker.unit
 
             currentUnitActed()
+            goToEvening currentDay
 
         # cancel: go back to act
 
